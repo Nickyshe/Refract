@@ -11,7 +11,7 @@ import { themes as prismThemes } from "prism-react-renderer";
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "Refract",
-  favicon: "img/favicon.ico",
+  favicon: "img/FAVICON.png",
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   // future: {
@@ -72,7 +72,7 @@ const config = {
         title: "Refract",
         logo: {
           alt: "My Site Logo",
-          src: "img/logo.svg",
+          src: "img/FAVICON.png",
         },
         items: [
           {
