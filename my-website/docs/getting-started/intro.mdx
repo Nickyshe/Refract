@@ -1,3 +1,64 @@
 ---
+title: "Introduction"
 sidebar_position: 2
+sidebar_label: "Introduction"
+slug: /introduction 
 ---
+
+Welcome to Refract! If you're tired of wrestling with complex state management or want to build UIs that feel naturally reactive, you're in the right place.
+
+## What is Refract?
+
+Refract is a JavaScript framework that makes building user interfaces feel more like describing what should happen rather than manually orchestrating every change. Think of it as React's thoughtful cousin who studied optics and really gets how data should flow through your app.
+
+The core idea is simple: your UI should automatically update when your data changes, without you having to think about it. But unlike other reactive frameworks, Refract gives you fine-grained control over *how* those updates happen.
+
+## Why choose Refract?
+
+### It's actually reactive
+Most frameworks call themselves "reactive," but they're really just efficient at re-rendering. Refract uses **refractions**—reactive units of state that propagate changes automatically. When you update a refraction, every component that depends on it updates immediately, no questions asked.
+
+### Built for composition
+Remember how React hooks changed everything by making logic reusable? Refract takes that further with **optical composition**. You can bundle related state, effects, and behaviors into reusable **optics** that work seamlessly across components.
+
+### Performance by design
+Refract's compiler optimizes your components at build time, and the runtime uses fine-grained reactivity to update only what actually changed. No virtual DOM diffing, no unnecessary re-renders.
+
+### Developer experience matters
+Refract works beautifully with TypeScript out of the box, has built-in animation support, and provides clear error messages that actually help you fix problems.
+
+## Core concepts at a glance
+
+Before we dive into code, here are the main ideas you'll work with:
+
+- **Components**: Pure functions that return JSX, created with `createComponent()`
+- **Refractions**: Reactive state that automatically triggers UI updates
+- **Lenses**: Your component's window into props, state, and side effects  
+- **Optics**: Reusable logic bundles (like React hooks, but better)
+- **Side effects**: Controlled with clear, predictable application programming interfaces (APIs)
+
+## A quick example
+
+Here's what a simple counter looks like in Refract:
+
+```javascript showLineNumbers
+import { createComponent } from 'refract';
+
+const Counter = createComponent(({ lens }) => {
+  const count = lens.useRefraction(0);
+
+  return (
+    <button onClick={() => count.set(count.value + 1)}>
+      Clicked {count.value} times
+    </button>
+  );
+});
+```
+
+Notice how clean this is? The `count` refraction automatically updates the button text when you click it. No `useState`, no manual state management—just describe what you want and let Refract handle the rest.
+
+## What's next?
+
+Ready to build something? Head to the [installation guide](./installation.mdx) to get Refract set up in your project, then walk through [your first component](./create-your-first-component.mdx) to see how everything fits together.
+
+If you're coming from React, you'll feel right at home. If you're new to frontend frameworks, Refract's clear mental model will help you understand reactive programming from the ground up.

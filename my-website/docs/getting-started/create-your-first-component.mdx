@@ -1,3 +1,267 @@
 ---
+title: "Create your first component"
 sidebar_position: 4
+sidebar_label: "Create your first component"
+slug: /create-your-first-component
 ---
+
+
+Let's build your first Refract component step by step. By the end of this guide, you'll understand how components, refractions, and lenses work together to create reactive UIs.
+
+## The basics: Hello World
+
+Every Refract component starts with the `createComponent()` function. Here's the simplest possible component:
+
+```javascript showLineNumbers
+import { createComponent } from 'refract';
+
+const HelloWorld = createComponent(() => {
+  return <h1>Hello, World!</h1>;
+});
+
+export default HelloWorld;
+```
+
+This component doesn't do much, but it demonstrates the basic structure. Notice that we return JSX directly—no need for a render method or complex class syntax.
+
+## Adding state with refractions
+
+Now let's make things interactive. We'll create a counter that updates when you click a button:
+
+```javascript showLineNumbers
+import { createComponent } from 'refract';
+
+const Counter = createComponent(({ lens }) => {
+  const count = lens.useRefraction(0);
+
+  return (
+    <div>
+      <p>Count: {count.value}</p>
+      <button onClick={() => count.set(count.value + 1)}>
+        Increment
+      </button>
+    </div>
+  );
+});
+
+export default Counter;
+```
+
+Let's break this down:
+
+- **`({ lens })`**: Every component receives a `lens` parameter that gives you access to state and effects
+- **`lens.useRefraction(0)`**: Creates a reactive piece of state initialized to `0`
+- **`count.value`**: Gets the current value of the refraction
+- **`count.set(newValue)`**: Updates the refraction, which automatically triggers a re-render
+
+## Working with props
+
+Components can receive props just like in React, but they come through the lens:
+
+```javascript showLineNumbers
+const Greeting = createComponent(({ lens, name, age }) => {
+  const enthusiasm = lens.useRefraction(1);
+
+  const exclamation = '!'.repeat(enthusiasm.value);
+
+  return (
+    <div>
+      <h2>Hello, {name}{exclamation}</h2>
+      <p>You are {age} years old.</p>
+      <button onClick={() => enthusiasm.set(enthusiasm.value + 1)}>
+        More enthusiasm!
+      </button>
+    </div>
+  );
+});
+
+// Usage
+<Greeting name="Alex" age={25} />
+```
+
+Props are passed as regular parameters alongside `lens`. The component can use both props and local state seamlessly.
+
+## Handling complex state
+
+Refractions can hold any JavaScript value—objects, arrays, even functions:
+
+```javascript showLineNumbers
+const TodoList = createComponent(({ lens }) => {
+  const todos = lens.useRefraction([]);
+  const newTodo = lens.useRefraction('');
+
+  const addTodo = () => {
+    if (newTodo.value.trim()) {
+      todos.set([...todos.value, {
+        id: Date.now(),
+        text: newTodo.value,
+        completed: false
+      }]);
+      newTodo.set('');
+    }
+  };
+
+  const toggleTodo = (id) => {
+    todos.set(
+      todos.value.map(todo =>
+        todo.id === id ? { ...todo, completed: !todo.completed } : todo
+      )
+    );
+  };
+
+  return (
+    <div>
+      <input
+        type="text"
+        value={newTodo.value}
+        onChange={(e) => newTodo.set(e.target.value)}
+        placeholder="Add a todo..."
+      />
+      <button onClick={addTodo}>Add</button>
+      
+      <ul>
+        {todos.value.map(todo => (
+          <li key={todo.id}>
+            <label>
+              <input
+                type="checkbox"
+                checked={todo.completed}
+                onChange={() => toggleTodo(todo.id)}
+              />
+              {todo.text}
+            </label>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+});
+```
+
+## Adding side effects
+
+Sometimes you need to perform side effects—like fetching data or setting up event listeners. Use `lens.useEffect()`:
+
+```javascript showLineNumbers
+const UserProfile = createComponent(({ lens, userId }) => {
+  const user = lens.useRefraction(null);
+  const loading = lens.useRefraction(true);
+  const error = lens.useRefraction(null);
+
+  lens.useEffect(() => {
+    loading.set(true);
+    error.set(null);
+
+    fetch(`/api/users/${userId}`)
+      .then(response => response.json())
+      .then(userData => {
+        user.set(userData);
+        loading.set(false);
+      })
+      .catch(err => {
+        error.set(err.message);
+        loading.set(false);
+      });
+  }, [userId]); // Re-run when userId changes
+
+  if (loading.value) return <p>Loading...</p>;
+  if (error.value) return <p>Error: {error.value}</p>;
+  if (!user.value) return <p>No user found</p>;
+
+  return (
+    <div>
+      <h2>{user.value.name}</h2>
+      <p>Email: {user.value.email}</p>
+    </div>
+  );
+});
+```
+
+The dependency array `[userId]` tells Refract to re-run the effect whenever `userId` changes.
+
+## Component composition
+
+Components compose naturally. Here's how you might combine the components we've built:
+
+```javascript showLineNumbers
+const App = createComponent(({ lens }) => {
+  const selectedUserId = lens.useRefraction(1);
+
+  return (
+    <div>
+      <h1>My Refract App</h1>
+      
+      <Greeting name="Developer" age={30} />
+      
+      <Counter />
+      
+      <div>
+        <label>
+          User ID: 
+          <input
+            type="number"
+            value={selectedUserId.value}
+            onChange={(e) => selectedUserId.set(Number(e.target.value))}
+          />
+        </label>
+        <UserProfile userId={selectedUserId.value} />
+      </div>
+      
+      <TodoList />
+    </div>
+  );
+});
+```
+
+## Key takeaways
+
+After building these components, you should understand:
+
+1. **Components are pure functions** that return JSX
+2. **Refractions are reactive state** that automatically update the UI when changed
+3. **The lens provides access** to state management and side effects
+4. **Props and state work together** seamlessly
+5. **Effects handle side effects** with clear dependency tracking
+
+## Common patterns
+
+### Derived state
+You can compute values from refractions without storing them:
+
+```javascript showLineNumbers
+const count = lens.useRefraction(0);
+const isEven = count.value % 2 === 0; // Computed automatically
+```
+
+### Conditional rendering
+Use regular JavaScript logic:
+
+```javascript
+return (
+  <div>
+    {user.value ? (
+      <h2>Welcome, {user.value.name}!</h2>
+    ) : (
+      <button onClick={login}>Log In</button>
+    )}
+  </div>
+);
+```
+
+### Event handling
+Event handlers are just regular functions:
+
+```javascript showLineNumbers
+const handleSubmit = (e) => {
+  e.preventDefault();
+  // Handle form submission
+};
+
+return <form onSubmit={handleSubmit}>...</form>;
+```
+
+## What's next?
+
+Now that you understand the basics, dive deeper into core concepts to learn about advanced component patterns, or explore refractions to master reactive state management.
+
+You're ready to start building real applications with Refract!

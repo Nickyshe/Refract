@@ -1,3 +1,246 @@
 ---
+title: "Installation"
 sidebar_position: 3
+sidebar_label: "Installation"
+slug: /installation
 ---
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Getting Refract up and running is straightforward. This guide covers everything from a basic setup to advanced configuration options.
+
+## Quick start
+
+The fastest way to try Refract is with npm or yarn:
+
+<Tabs>
+  <TabItem value="npm" label="npm" default>
+  
+  ```bash
+  npm install refract-js
+  ```
+    
+  </TabItem>
+  <TabItem value="yarn" label="yarn">
+  ```bash
+  yarn add refract-js
+  ```
+    
+  </TabItem>
+</Tabs>
+
+
+That's it! You're ready to start building.
+
+## Project setup
+
+### Basic project structure
+
+Refract works with any build tool, but here's a recommended project structure:
+
+```
+my-refract-app/
+├── src/
+│   ├── components/
+│   │   ├── App.js
+│   │   └── Header.js
+│   ├── optics/
+│   │   └── useTheme.js
+│   ├── main.js
+│   └── index.html
+├── refract.config.js
+└── package.json
+```
+Here's what each part does:
+
+* `src/:` Your source code lives here
+* `src/components/:` All your Refract components go in this folder
+  * `App.js:` Your main app component
+  * `Header.js:` Individual UI components
+* `src/optics/:` Reusable logic and custom hooks (like useTheme for managing app-wide theme state)
+* `src/main.js:` Your app's entry point where you mount the root component
+* `src/index.html:` The HTML template that loads your app
+* `refract.config.js:` Optional configuration file for compiler settings and build options
+* `package.json:` Standard npm package file with your dependencies
+* `src/optics/:` The optics/ folder is particularly important in Refract—it's where you'll put reusable state logic that multiple components can share. Think of optics as super-powered React hooks that work seamlessly with Refract's reactivity system.
+
+### Creating your main entry point
+
+Create a `src/main.js` file:
+
+```javascript showLineNumbers
+import { createApp } from 'refract';
+import App from './components/App';
+
+createApp(App).mount('#root');
+```
+
+### Setting up your HTML
+
+Your `src/index.html` should include a root element:
+
+```html showLineNumbers
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Refract App</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="./main.js"></script>
+</body>
+</html>
+```
+
+## Build tool configuration
+
+### Vite (recommended)
+
+Refract works great with Vite. Install the Refract plugin:
+
+```bash
+npm install @refract/vite-plugin
+```
+
+Then update your `vite.config.js`:
+
+```javascript showLineNumbers
+import { defineConfig } from 'vite';
+import refract from '@refract/vite-plugin';
+
+export default defineConfig({
+  plugins: [refract()],
+});
+```
+
+### Webpack
+
+For Webpack projects, use the Refract loader:
+
+```bash
+npm install @refract/webpack-loader
+```
+
+Add to your `webpack.config.js`:
+
+```javascript showLineNumbers
+module.exports = {
+  module: {
+    rules: [
+      {
+        test: /\.jsx?$/,
+        use: ['@refract/webpack-loader'],
+        exclude: /node_modules/,
+      },
+    ],
+  },
+};
+```
+
+### Parcel
+
+Parcel works with Refract out of the box—no additional configuration needed!
+
+## TypeScript setup
+
+Refract has excellent TypeScript support. Install the type definitions:
+
+```bash
+npm install @types/refract-js
+```
+
+Create a `tsconfig.json`:
+
+```json showLineNumbers
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "preserve",
+    "jsxImportSource": "refract",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*"]
+}
+```
+
+## Configuration options
+
+### Refract config file
+
+Create a `refract.config.js` for advanced configuration:
+
+```javascript showLineNumbers
+export default {
+  // Enable compiler optimizations
+  compiler: {
+    optimize: true,
+    deadCodeElimination: true,
+  },
+  
+  // Development options
+  dev: {
+    hotReload: true,
+    debugMode: true,
+  },
+  
+  // Animation settings
+  animations: {
+    defaultDuration: 300,
+    easing: 'ease-out',
+  },
+};
+```
+
+### Environment variables
+
+Refract respects these environment variables:
+
+- `REFRACT_DEV`: Enable development mode
+- `REFRACT_DEBUG`: Show debug information
+- `REFRACT_OPTIMIZE`: Enable compiler optimizations
+
+## Verify your installation
+
+Create a simple component to test everything works:
+
+```javascript showLineNumbers
+// src/components/App.js
+import { createComponent } from 'refract';
+
+const App = createComponent(({ lens }) => {
+  return (
+    <div>
+      <h1>Hello, Refract!</h1>
+      <p>Your installation is working correctly.</p>
+    </div>
+  );
+});
+
+export default App;
+```
+
+Run your development server and you should see "Hello, Refract!" in your browser.
+
+## Troubleshooting
+
+### Common issues
+
+1. **"refract is not defined" error**
+Make sure you've installed the correct package (`refract-js`, not `refract`) and your build tool is configured properly.
+
+2. **TypeScript errors with JSX**
+Check that your `tsconfig.json` includes `"jsxImportSource": "refract"`.
+
+3. **Build tool not recognizing Refract files**
+Ensure you've installed and configured the appropriate plugin for your build tool.
+
+
+## What's next?
+
+Now that Refract is installed, let's build [your first component](./create-your-first-component) and explore what makes this framework special.
