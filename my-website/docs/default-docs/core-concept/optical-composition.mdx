@@ -1,0 +1,727 @@
+---
+title: "Optical Composition"
+sidebar_label: "Optical Composition"
+sidebar_position: 4
+slug: /optical-composition
+---
+
+
+Optical composition is Refract's system for creating reusable patterns of stateful logic. Think of optics as custom tools that you can use across different components—they encapsulate common behaviors and state management patterns that you'd otherwise have to rewrite every time.
+
+## What Are Optics?
+
+An optic is a custom function that uses lens methods to create reusable stateful logic. While components handle what your UI looks like, optics handle how your UI behaves. They're similar to custom hooks in React, but with Refract's reactive system built in.
+
+```javascript showLineNumbers
+import { useOptic } from 'refract';
+
+// A simple optic for managing a toggle state
+function useToggle(initialValue = false) {
+  return useOptic((lens) => {
+    const isToggled = lens.useRefraction(initialValue);
+    
+    const toggle = () => isToggled.set(!isToggled.value);
+    const setToggle = (value) => isToggled.set(value);
+    
+    return {
+      value: isToggled.value,
+      toggle,
+      setToggle
+    };
+  });
+}
+
+// Using the optic in a component
+const ToggleButton = createComponent(({ lens }) => {
+  const showDetails = useToggle(false);
+  
+  return (
+    <div>
+      <button onClick={showDetails.toggle}>
+        {showDetails.value ? 'Hide' : 'Show'} Details
+      </button>
+      {showDetails.value && (
+        <p>Here are some details that were hidden!</p>
+      )}
+    </div>
+  );
+});
+```
+
+## Creating Your First Optic
+
+Let's build a common pattern—a counter with increment, decrement, and reset functionality:
+
+```javascript showLineNumbers
+function useCounter(initialValue = 0, step = 1) {
+  return useOptic((lens) => {
+    const count = lens.useRefraction(initialValue);
+    
+    const increment = () => count.set(count.value + step);
+    const decrement = () => count.set(count.value - step);
+    const reset = () => count.set(initialValue);
+    const setValue = (newValue) => count.set(newValue);
+    
+    return {
+      count: count.value,
+      increment,
+      decrement,
+      reset,
+      setValue
+    };
+  });
+}
+
+// Now any component can use this counter logic
+const CounterDisplay = createComponent(({ lens }) => {
+  const counter = useCounter(10, 2); // Start at 10, increment by 2
+  
+  return (
+    <div>
+      <p>Count: {counter.count}</p>
+      <button onClick={counter.increment}>+2</button>
+      <button onClick={counter.decrement}>-2</button>
+      <button onClick={counter.reset}>Reset</button>
+    </div>
+  );
+});
+```
+
+## Optics with Side Effects
+
+Optics can handle complex logic including API calls, subscriptions, and other side effects:
+
+```javascript showLineNumbers
+function useApi(url, options = {}) {
+  return useOptic((lens) => {
+    const data = lens.useRefraction(null);
+    const loading = lens.useRefraction(false);
+    const error = lens.useRefraction(null);
+    
+    const fetchData = async () => {
+      loading.set(true);
+      error.set(null);
+      
+      try {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const result = await response.json();
+        data.set(result);
+      } catch (err) {
+        error.set(err.message);
+      } finally {
+        loading.set(false);
+      }
+    };
+    
+    // Auto-fetch when URL changes
+    lens.useEffect(() => {
+      if (url) fetchData();
+    }, [url]);
+    
+    return {
+      data: data.value,
+      loading: loading.value,
+      error: error.value,
+      refetch: fetchData
+    };
+  });
+}
+
+const UserProfile = createComponent(({ lens, userId }) => {
+  const userApi = useApi(`/api/users/${userId}`);
+  
+  if (userApi.loading) return <div>Loading user...</div>;
+  if (userApi.error) return <div>Error: {userApi.error}</div>;
+  if (!userApi.data) return <div>No user found</div>;
+  
+  return (
+    <div>
+      <h2>{userApi.data.name}</h2>
+      <p>{userApi.data.email}</p>
+      <button onClick={userApi.refetch}>Refresh</button>
+    </div>
+  );
+});
+```
+
+## Advanced Optic Patterns
+
+### Form Management Optic
+
+```javascript showLineNumbers
+function useForm(initialValues, validationRules = {}) {
+  return useOptic((lens) => {
+    const values = lens.useRefraction(initialValues);
+    const errors = lens.useRefraction({});
+    const touched = lens.useRefraction({});
+    const isSubmitting = lens.useRefraction(false);
+    
+    const validateField = (fieldName, value) => {
+      const rule = validationRules[fieldName];
+      if (!rule) return null;
+      
+      if (typeof rule === 'function') {
+        return rule(value);
+      }
+      
+      if (rule.required && !value) {
+        return 'This field is required';
+      }
+      
+      if (rule.minLength && value.length < rule.minLength) {
+        return `Must be at least ${rule.minLength} characters`;
+      }
+      
+      return null;
+    };
+    
+    const setFieldValue = (fieldName, value) => {
+      values.set({ ...values.value, [fieldName]: value });
+      
+      // Validate if field has been touched
+      if (touched.value[fieldName]) {
+        const error = validateField(fieldName, value);
+        errors.set({ 
+          ...errors.value, 
+          [fieldName]: error 
+        });
+      }
+    };
+    
+    const setFieldTouched = (fieldName) => {
+      touched.set({ ...touched.value, [fieldName]: true });
+      
+      // Validate when field becomes touched
+      const value = values.value[fieldName];
+      const error = validateField(fieldName, value);
+      errors.set({ 
+        ...errors.value, 
+        [fieldName]: error 
+      });
+    };
+    
+    const validateForm = () => {
+      const newErrors = {};
+      Object.keys(values.value).forEach(fieldName => {
+        const error = validateField(fieldName, values.value[fieldName]);
+        if (error) newErrors[fieldName] = error;
+      });
+      
+      errors.set(newErrors);
+      return Object.keys(newErrors).length === 0;
+    };
+    
+    const handleSubmit = async (onSubmit) => {
+      const isValid = validateForm();
+      if (!isValid) return;
+      
+      isSubmitting.set(true);
+      try {
+        await onSubmit(values.value);
+      } finally {
+        isSubmitting.set(false);
+      }
+    };
+    
+    const resetForm = () => {
+      values.set(initialValues);
+      errors.set({});
+      touched.set({});
+    };
+    
+    return {
+      values: values.value,
+      errors: errors.value,
+      touched: touched.value,
+      isSubmitting: isSubmitting.value,
+      setFieldValue,
+      setFieldTouched,
+      validateForm,
+      handleSubmit,
+      resetForm
+    };
+  });
+}
+
+const ContactForm = createComponent(({ lens, onSubmit }) => {
+  const form = useForm(
+    { name: '', email: '', message: '' },
+    {
+      name: { required: true, minLength: 2 },
+      email: { required: true, pattern: /\S+@\S+\.\S+/ },
+      message: { required: true, minLength: 10 }
+    }
+  );
+  
+  return (
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      form.handleSubmit(onSubmit);
+    }}>
+      <div>
+        <input
+          value={form.values.name}
+          onChange={(e) => form.setFieldValue('name', e.target.value)}
+          onBlur={() => form.setFieldTouched('name')}
+          placeholder="Your name"
+        />
+        {form.errors.name && <span className="error">{form.errors.name}</span>}
+      </div>
+      
+      <div>
+        <input
+          value={form.values.email}
+          onChange={(e) => form.setFieldValue('email', e.target.value)}
+          onBlur={() => form.setFieldTouched('email')}
+          placeholder="Your email"
+        />
+        {form.errors.email && <span className="error">{form.errors.email}</span>}
+      </div>
+      
+      <div>
+        <textarea
+          value={form.values.message}
+          onChange={(e) => form.setFieldValue('message', e.target.value)}
+          onBlur={() => form.setFieldTouched('message')}
+          placeholder="Your message"
+        />
+        {form.errors.message && <span className="error">{form.errors.message}</span>}
+      </div>
+      
+      <button type="submit" disabled={form.isSubmitting}>
+        {form.isSubmitting ? 'Sending...' : 'Send Message'}
+      </button>
+    </form>
+  );
+});
+```
+
+### Local Storage Persistence Optic
+
+```javascript showLineNumbers
+function useLocalStorage(key, initialValue) {
+  return useOptic((lens) => {
+    const getStoredValue = () => {
+      try {
+        const stored = localStorage.getItem(key);
+        return stored ? JSON.parse(stored) : initialValue;
+      } catch {
+        return initialValue;
+      }
+    };
+    
+    const storedValue = lens.useRefraction(getStoredValue());
+    
+    const setValue = (value) => {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+        storedValue.set(value);
+      } catch (err) {
+        console.error('Failed to save to localStorage:', err);
+      }
+    };
+    
+    const removeValue = () => {
+      try {
+        localStorage.removeItem(key);
+        storedValue.set(initialValue);
+      } catch (err) {
+        console.error('Failed to remove from localStorage:', err);
+      }
+    };
+    
+    return {
+      value: storedValue.value,
+      setValue,
+      removeValue
+    };
+  });
+}
+
+const UserPreferences = createComponent(({ lens }) => {
+  const theme = useLocalStorage('user-theme', 'light');
+  const fontSize = useLocalStorage('font-size', 'medium');
+  
+  return (
+    <div className={`app ${theme.value}-theme ${fontSize.value}-font`}>
+      <h2>User Preferences</h2>
+      
+      <div>
+        <label>Theme:</label>
+        <select 
+          value={theme.value} 
+          onChange={(e) => theme.setValue(e.target.value)}
+        >
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </div>
+      
+      <div>
+        <label>Font Size:</label>
+        <select 
+          value={fontSize.value} 
+          onChange={(e) => fontSize.setValue(e.target.value)}
+        >
+          <option value="small">Small</option>
+          <option value="medium">Medium</option>
+          <option value="large">Large</option>
+        </select>
+      </div>
+    </div>
+  );
+});
+```
+
+### Debounced Input Optic
+
+```javascript showLineNumbers
+function useDebounce(value, delay) {
+  return useOptic((lens) => {
+    const debouncedValue = lens.useRefraction(value);
+    
+    lens.useEffect(() => {
+      const timeoutId = setTimeout(() => {
+        debouncedValue.set(value);
+      }, delay);
+      
+      return () => clearTimeout(timeoutId);
+    }, [value, delay]);
+    
+    return debouncedValue.value;
+  });
+}
+
+function useSearch(searchFunction) {
+  return useOptic((lens) => {
+    const query = lens.useRefraction('');
+    const results = lens.useRefraction([]);
+    const loading = lens.useRefraction(false);
+    
+    const debouncedQuery = useDebounce(query.value, 300);
+    
+    lens.useEffect(async () => {
+      if (!debouncedQuery.trim()) {
+        results.set([]);
+        return;
+      }
+      
+      loading.set(true);
+      try {
+        const searchResults = await searchFunction(debouncedQuery);
+        results.set(searchResults);
+      } catch (err) {
+        console.error('Search failed:', err);
+        results.set([]);
+      } finally {
+        loading.set(false);
+      }
+    }, [debouncedQuery]);
+    
+    return {
+      query: query.value,
+      results: results.value,
+      loading: loading.value,
+      setQuery: query.set
+    };
+  });
+}
+
+const SearchBox = createComponent(({ lens, onResultSelect }) => {
+  const search = useSearch(async (query) => {
+    const response = await fetch(`/api/search?q=${query}`);
+    return response.json();
+  });
+  
+  return (
+    <div className="search-box">
+      <input
+        value={search.query}
+        onChange={(e) => search.setQuery(e.target.value)}
+        placeholder="Search..."
+      />
+      
+      {search.loading && <div className="loading">Searching...</div>}
+      
+      {search.results.length > 0 && (
+        <ul className="search-results">
+          {search.results.map(result => (
+            <li 
+              key={result.id}
+              onClick={() => onResultSelect(result)}
+            >
+              {result.title}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+});
+```
+
+## Composing Optics Together
+
+One of the most powerful features is combining multiple optics to create complex behavior:
+
+```javascript showLineNumbers
+function useShoppingCart() {
+  return useOptic((lens) => {
+    const items = useLocalStorage('cart-items', []);
+    const isOpen = useToggle(false);
+    
+    const addItem = (product) => {
+      const currentItems = items.value;
+      const existingItem = currentItems.find(item => item.id === product.id);
+      
+      if (existingItem) {
+        items.setValue(currentItems.map(item =>
+          item.id === product.id 
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        ));
+      } else {
+        items.setValue([...currentItems, { ...product, quantity: 1 }]);
+      }
+    };
+    
+    const removeItem = (productId) => {
+      items.setValue(items.value.filter(item => item.id !== productId));
+    };
+    
+    const updateQuantity = (productId, quantity) => {
+      if (quantity <= 0) {
+        removeItem(productId);
+        return;
+      }
+      
+      items.setValue(items.value.map(item =>
+        item.id === productId 
+          ? { ...item, quantity }
+          : item
+      ));
+    };
+    
+    const totalPrice = items.value.reduce((sum, item) => 
+      sum + (item.price * item.quantity), 0
+    );
+    
+    const itemCount = items.value.reduce((sum, item) => 
+      sum + item.quantity, 0
+    );
+    
+    return {
+      items: items.value,
+      isOpen: isOpen.value,
+      totalPrice,
+      itemCount,
+      addItem,
+      removeItem,
+      updateQuantity,
+      toggle: isOpen.toggle,
+      open: () => isOpen.setToggle(true),
+      close: () => isOpen.setToggle(false)
+    };
+  });
+}
+
+const ProductList = createComponent(({ lens, products }) => {
+  const cart = useShoppingCart();
+  
+  return (
+    <div>
+      <button onClick={cart.toggle} className="cart-toggle">
+        Cart ({cart.itemCount})
+      </button>
+      
+      {cart.isOpen && (
+        <div className="cart-dropdown">
+          {cart.items.map(item => (
+            <div key={item.id} className="cart-item">
+              <span>{item.name}</span>
+              <span>${item.price} x {item.quantity}</span>
+              <button onClick={() => cart.removeItem(item.id)}>Remove</button>
+            </div>
+          ))}
+          <div className="cart-total">
+            Total: ${cart.totalPrice.toFixed(2)}
+          </div>
+        </div>
+      )}
+      
+      <div className="products">
+        {products.map(product => (
+          <div key={product.id} className="product">
+            <h3>{product.name}</h3>
+            <p>${product.price}</p>
+            <button onClick={() => cart.addItem(product)}>
+              Add to Cart
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});
+```
+
+## Optic Best Practices
+
+### Keep Optics Focused
+
+Each optic should handle one specific concern:
+
+```javascript showLineNumbers
+// ✅ Good - focused on one thing
+function useCounter(initialValue = 0) {
+  return useOptic((lens) => {
+    // Counter logic only
+  });
+}
+
+function useApi(url) {
+  return useOptic((lens) => {
+    // API logic only
+  });
+}
+
+// ❌ Bad - doing too much
+function useCounterWithApi(url, initialValue = 0) {
+  return useOptic((lens) => {
+    // Counter AND API logic mixed together
+  });
+}
+```
+
+### Provide Clear APIs
+
+Make your optics easy to understand and use:
+
+```javascript showLineNumbers
+// ✅ Good - clear, predictable API
+function useModal() {
+  return useOptic((lens) => {
+    const isOpen = lens.useRefraction(false);
+    const content = lens.useRefraction(null);
+    
+    return {
+      isOpen: isOpen.value,
+      content: content.value,
+      open: (modalContent) => {
+        content.set(modalContent);
+        isOpen.set(true);
+      },
+      close: () => {
+        isOpen.set(false);
+      }
+    };
+  });
+}
+
+// ❌ Bad - confusing API
+function useModal() {
+  return useOptic((lens) => {
+    const state = lens.useRefraction({ open: false, content: null });
+    
+    return {
+      state: state.value, // User has to know the structure
+      setState: state.set // User has to manage the whole state object
+    };
+  });
+}
+```
+
+### Handle Edge Cases
+
+```javascript showLineNumbers
+function useApi(url, options = {}) {
+  return useOptic((lens) => {
+    const data = lens.useRefraction(null);
+    const loading = lens.useRefraction(false);
+    const error = lens.useRefraction(null);
+    
+    const fetchData = async () => {
+      // Handle empty URL
+      if (!url) {
+        error.set('URL is required');
+        return;
+      }
+      
+      loading.set(true);
+      error.set(null);
+      
+      try {
+        const response = await fetch(url, {
+          timeout: 5000, // Default timeout
+          ...options
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        data.set(result);
+      } catch (err) {
+        error.set(err.message);
+        data.set(null); // Clear old data on error
+      } finally {
+        loading.set(false);
+      }
+    };
+    
+    // Auto-fetch when URL changes
+    lens.useEffect(() => {
+      fetchData();
+    }, [url]);
+    
+    return {
+      data: data.value,
+      loading: loading.value,
+      error: error.value,
+      refetch: fetchData
+    };
+  });
+}
+```
+
+## Testing Optics
+
+Optics are easier to test than components because they're pure logic:
+
+```javascript showLineNumbers
+// test/useCounter.test.js
+import { renderOptic } from '@refract/testing-utils';
+import { useCounter } from '../optics/useCounter';
+
+describe('useCounter', () => {
+  it('starts with initial value', () => {
+    const { result } = renderOptic(() => useCounter(5));
+    expect(result.current.count).toBe(5);
+  });
+  
+  it('increments correctly', () => {
+    const { result } = renderOptic(() => useCounter(0));
+    
+    result.current.increment();
+    expect(result.current.count).toBe(1);
+    
+    result.current.increment();
+    expect(result.current.count).toBe(2);
+  });
+  
+  it('respects custom step', () => {
+    const { result } = renderOptic(() => useCounter(0, 5));
+    
+    result.current.increment();
+    expect(result.current.count).toBe(5);
+  });
+});
+```
+
+## Next Steps
+
+Optical composition gives you the power to create reusable, testable logic that can be shared across your entire application. The final piece of the puzzle is understanding side effects—how to handle things like animations, timers, and external integrations safely within the Refract ecosystem.

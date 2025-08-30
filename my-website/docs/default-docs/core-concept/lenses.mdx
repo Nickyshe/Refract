@@ -1,0 +1,621 @@
+---
+title: "Lenses"
+sidebar_position: 3
+sidebar_label: "Lenses"
+slug: /lenses
+---
+
+Lenses are Refract's way of providing controlled access to state, side effects, and lifecycle events within your components. Think of a lens as your component's personal assistant—it gives you the tools you need while keeping everything organized and trackable.
+
+## What Are Lenses?
+
+Every Refract component receives a `lens` parameter. This lens object contains all the methods you need to interact with the reactive system. Instead of importing hooks directly like in other frameworks, you access everything through this lens.
+
+```javascript showLineNumbers
+const MyComponent = createComponent(({ lens, someProp }) => {
+  // Access state through the lens
+  const count = lens.useRefraction(0);
+  
+  // Access side effects through the lens
+  lens.useEffect(() => {
+    console.log('Component mounted');
+  }, []);
+  
+  // Everything reactive goes through the lens
+  return <div>Count: {count.value}</div>;
+});
+```
+
+## Why Use Lenses?
+
+Lenses provide several benefits:
+
+**Organization**: All reactive operations are centralized through one interface
+**Tracking**: Refract knows exactly what each component is doing
+**Optimization**: The framework can better optimize rendering and effects
+**Debugging**: Development tools can easily inspect what each component uses
+
+## Core Lens Methods
+
+### `lens.useRefraction(initialValue, options?)`
+
+Creates or accesses reactive state within your component:
+
+```javascript showLineNumbers
+const TodoApp = createComponent(({ lens }) => {
+  // Simple value
+  const inputText = lens.useRefraction('');
+  
+  // Complex object with debugging name
+  const todos = lens.useRefraction([], { name: 'todoList' });
+  
+  // With validation
+  const email = lens.useRefraction('', {
+    name: 'userEmail',
+    validate: (value) => value.includes('@')
+  });
+
+  const addTodo = () => {
+    if (inputText.value.trim()) {
+      todos.set([
+        ...todos.value,
+        { id: Date.now(), text: inputText.value, completed: false }
+      ]);
+      inputText.set('');
+    }
+  };
+
+  return (
+    <div>
+      <input 
+        value={inputText.value}
+        onChange={(e) => inputText.set(e.target.value)}
+        placeholder="What needs to be done?"
+      />
+      <button onClick={addTodo}>Add Todo</button>
+      
+      <ul>
+        {todos.value.map(todo => (
+          <li key={todo.id}>{todo.text}</li>
+        ))}
+      </ul>
+    </div>
+  );
+});
+```
+
+### `lens.useEffect(callback, dependencies?)`
+
+Handles side effects like API calls, subscriptions, or DOM manipulation:
+
+```javascript showLineNumbers
+const UserProfile = createComponent(({ lens, userId }) => {
+  const user = lens.useRefraction(null);
+  const loading = lens.useRefraction(true);
+
+  // Effect that runs when userId changes
+  lens.useEffect(async () => {
+    loading.set(true);
+    try {
+      const userData = await fetchUser(userId);
+      user.set(userData);
+    } catch (error) {
+      console.error('Failed to fetch user:', error);
+    } finally {
+      loading.set(false);
+    }
+  }, [userId]);
+
+  // Effect that runs only once (component mount)
+  lens.useEffect(() => {
+    console.log('UserProfile component mounted');
+    
+    // Cleanup function (runs when component unmounts)
+    return () => {
+      console.log('UserProfile component unmounted');
+    };
+  }, []);
+
+  if (loading.value) return <div>Loading...</div>;
+  if (!user.value) return <div>User not found</div>;
+
+  return (
+    <div>
+      <h2>{user.value.name}</h2>
+      <p>{user.value.email}</p>
+    </div>
+  );
+});
+```
+
+### `lens.useComputed(computeFn, dependencies)`
+
+Creates derived state that automatically updates when dependencies change:
+
+```javascript showLineNumbers
+const ShoppingCart = createComponent(({ lens }) => {
+  const items = lens.useRefraction([
+    { id: 1, name: 'Apple', price: 1.50, quantity: 3 },
+    { id: 2, name: 'Bread', price: 2.00, quantity: 1 }
+  ]);
+
+  // Automatically recalculates when items change
+  const totalPrice = lens.useComputed(() => {
+    return items.value.reduce((sum, item) => {
+      return sum + (item.price * item.quantity);
+    }, 0).toFixed(2);
+  }, [items.value]);
+
+  const itemCount = lens.useComputed(() => {
+    return items.value.reduce((sum, item) => sum + item.quantity, 0);
+  }, [items.value]);
+
+  return (
+    <div>
+      <h3>Shopping Cart ({itemCount.value} items)</h3>
+      {items.value.map(item => (
+        <div key={item.id}>
+          {item.name} - ${item.price} x {item.quantity}
+        </div>
+      ))}
+      <div><strong>Total: ${totalPrice.value}</strong></div>
+    </div>
+  );
+});
+```
+
+### `lens.batch(updateFunction)`
+
+Groups multiple state updates together to avoid unnecessary re-renders:
+
+```javascript showLineNumbers
+const UserSettings = createComponent(({ lens }) => {
+  const name = lens.useRefraction('');
+  const email = lens.useRefraction('');
+  const theme = lens.useRefraction('light');
+
+  const loadUserSettings = (userData) => {
+    // Instead of three separate updates causing three re-renders...
+    lens.batch(() => {
+      name.set(userData.name);
+      email.set(userData.email);
+      theme.set(userData.theme);
+    });
+    // Only one re-render happens after all updates are complete
+  };
+
+  const resetSettings = () => {
+    lens.batch(() => {
+      name.set('');
+      email.set('');
+      theme.set('light');
+    });
+  };
+
+  return (
+    <div>
+      <input value={name.value} onChange={(e) => name.set(e.target.value)} />
+      <input value={email.value} onChange={(e) => email.set(e.target.value)} />
+      <select value={theme.value} onChange={(e) => theme.set(e.target.value)}>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+      <button onClick={resetSettings}>Reset</button>
+    </div>
+  );
+});
+```
+
+## Advanced Lens Features
+
+### Custom Lens Context
+
+You can create specialized lenses for specific use cases:
+
+```javascript showLineNumbers
+const createFormLens = (lens, initialData) => {
+  const data = lens.useRefraction(initialData);
+  const errors = lens.useRefraction({});
+  const touched = lens.useRefraction({});
+
+  return {
+    data,
+    errors,
+    touched,
+    
+    updateField: (field, value) => {
+      data.set({ ...data.value, [field]: value });
+      if (touched.value[field]) {
+        // Re-validate if field has been touched
+        validateField(field, value);
+      }
+    },
+    
+    touchField: (field) => {
+      touched.set({ ...touched.value, [field]: true });
+    },
+    
+    validateField: (field, value) => {
+      // Custom validation logic
+      const fieldErrors = {};
+      if (!value) fieldErrors[field] = 'This field is required';
+      errors.set({ ...errors.value, ...fieldErrors });
+    }
+  };
+};
+
+const ContactForm = createComponent(({ lens, onSubmit }) => {
+  const form = createFormLens(lens, {
+    name: '',
+    email: '',
+    message: ''
+  });
+
+  return (
+    <form>
+      <input
+        value={form.data.value.name}
+        onChange={(e) => form.updateField('name', e.target.value)}
+        onBlur={() => form.touchField('name')}
+      />
+      {form.errors.value.name && <span>{form.errors.value.name}</span>}
+      
+      <input
+        value={form.data.value.email}
+        onChange={(e) => form.updateField('email', e.target.value)}
+        onBlur={() => form.touchField('email')}
+      />
+      {form.errors.value.email && <span>{form.errors.value.email}</span>}
+    </form>
+  );
+});
+```
+
+### Lens Scoping
+
+Sometimes you want to create a sub-lens that only has access to specific data:
+
+```javascript showLineNumbers
+const UserDashboard = createComponent(({ lens, user }) => {
+  const preferences = lens.useRefraction(user.preferences);
+  
+  // Create a focused lens for the preferences section
+  const preferencesLens = lens.createScope('preferences', {
+    get: () => preferences.value,
+    set: (newPrefs) => preferences.set(newPrefs)
+  });
+
+  return (
+    <div>
+      <h1>Welcome, {user.name}</h1>
+      <PreferencesPanel lens={preferencesLens} />
+    </div>
+  );
+});
+
+const PreferencesPanel = createComponent(({ lens }) => {
+  // This component only knows about preferences, not the full user object
+  const prefs = lens.useRefraction({});
+  
+  return (
+    <div>
+      <label>
+        Theme:
+        <select 
+          value={prefs.value.theme || 'light'}
+          onChange={(e) => prefs.set({ ...prefs.value, theme: e.target.value })}
+        >
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+    </div>
+  );
+});
+```
+
+## Lens Best Practices
+
+### Keep Effects Focused
+
+Each effect should have a single, clear purpose:
+
+```javascript showLineNumbers
+// ✅ Good - focused effects
+const DataComponent = createComponent(({ lens, userId }) => {
+  const user = lens.useRefraction(null);
+  const posts = lens.useRefraction([]);
+
+  // Separate effect for user data
+  lens.useEffect(async () => {
+    if (userId) {
+      const userData = await fetchUser(userId);
+      user.set(userData);
+    }
+  }, [userId]);
+
+  // Separate effect for posts data
+  lens.useEffect(async () => {
+    if (userId) {
+      const userPosts = await fetchUserPosts(userId);
+      posts.set(userPosts);
+    }
+  }, [userId]);
+
+  // Effect for cleanup/subscriptions
+  lens.useEffect(() => {
+    const subscription = subscribeToUserUpdates(userId, (updatedUser) => {
+      user.set(updatedUser);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [userId]);
+});
+
+// ❌ Bad - one effect doing too much
+const BadDataComponent = createComponent(({ lens, userId }) => {
+  lens.useEffect(async () => {
+    // Too much happening in one effect
+    const userData = await fetchUser(userId);
+    const userPosts = await fetchUserPosts(userId);
+    const subscription = subscribeToUserUpdates(userId, updateHandler);
+    user.set(userData);
+    posts.set(userPosts);
+    
+    return () => subscription.unsubscribe();
+  }, [userId]);
+});
+```
+
+### Use Meaningful Names for Refractions
+
+```javascript showLineNumbers
+// ✅ Good - descriptive names
+const shoppingCart = lens.useRefraction([], { name: 'shoppingCartItems' });
+const isUserLoggedIn = lens.useRefraction(false, { name: 'userAuthStatus' });
+
+// ❌ Bad - generic names
+const data = lens.useRefraction([]);
+const flag = lens.useRefraction(false);
+```
+
+### Handle Dependencies Correctly
+
+```javascript showLineNumbers
+const SearchComponent = createComponent(({ lens, searchQuery, filters }) => {
+  const results = lens.useRefraction([]);
+
+  // ✅ Good - all dependencies listed
+  lens.useEffect(async () => {
+    if (searchQuery) {
+      const searchResults = await search(searchQuery, filters);
+      results.set(searchResults);
+    }
+  }, [searchQuery, filters]);
+
+  // ❌ Bad - missing dependencies
+  lens.useEffect(async () => {
+    if (searchQuery) {
+      // Uses 'filters' but doesn't list it as dependency
+      const searchResults = await search(searchQuery, filters);
+      results.set(searchResults);
+    }
+  }, [searchQuery]); // Missing 'filters' dependency
+});
+```
+
+## Common Patterns
+
+### Debounced Input
+
+```javascript showLineNumbers
+const SearchBox = createComponent(({ lens, onSearch }) => {
+  const query = lens.useRefraction('');
+  const debouncedQuery = lens.useRefraction('');
+
+  // Debounce the search query
+  lens.useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      debouncedQuery.set(query.value);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [query.value]);
+
+  // Trigger search when debounced query changes
+  lens.useEffect(() => {
+    if (debouncedQuery.value) {
+      onSearch(debouncedQuery.value);
+    }
+  }, [debouncedQuery.value]);
+
+  return (
+    <input
+      value={query.value}
+      onChange={(e) => query.set(e.target.value)}
+      placeholder="Search..."
+    />
+  );
+});
+```
+
+### Modal Management
+
+```javascript showLineNumbers
+const ModalManager = createComponent(({ lens }) => {
+  const isOpen = lens.useRefraction(false);
+  const modalContent = lens.useRefraction(null);
+
+  // Handle escape key to close modal
+  lens.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isOpen.value) {
+        isOpen.set(false);
+      }
+    };
+
+    if (isOpen.value) {
+      document.addEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'hidden'; // Prevent background scroll
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = ''; // Restore scroll
+    };
+  }, [isOpen.value]);
+
+  const openModal = (content) => {
+    modalContent.set(content);
+    isOpen.set(true);
+  };
+
+  const closeModal = () => {
+    isOpen.set(false);
+  };
+
+  return (
+    <div>
+      <button onClick={() => openModal(<div>Hello Modal!</div>)}>
+        Open Modal
+      </button>
+      
+      {isOpen.value && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="close-btn" onClick={closeModal}>×</button>
+            {modalContent.value}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+```
+
+## Lens Lifecycle
+
+Understanding when lens methods are called helps you write more predictable components:
+
+```javascript showLineNumbers
+const LifecycleExample = createComponent(({ lens, visible }) => {
+  console.log('1. Component function called');
+
+  const count = lens.useRefraction(0);
+  console.log('2. useRefraction called');
+
+  lens.useEffect(() => {
+    console.log('3. Effect runs after render');
+    
+    return () => {
+      console.log('4. Cleanup runs before next effect or unmount');
+    };
+  }, [count.value]);
+
+  lens.useEffect(() => {
+    console.log('5. Mount effect runs once');
+    
+    return () => {
+      console.log('6. Unmount cleanup runs when component unmounts');
+    };
+  }, []);
+
+  console.log('7. Render return happens');
+  
+  return (
+    <div>
+      <p>Count: {count.value}</p>
+      <button onClick={() => count.set(count.value + 1)}>
+        Increment
+      </button>
+    </div>
+  );
+});
+
+// Order of execution:
+// First render: 1 → 2 → 7 → 3 → 5
+// Re-render (count changes): 1 → 2 → 7 → 4 → 3
+// Unmount: 4 → 6
+```
+
+## Debugging with Lenses
+
+Refract provides development tools to help you debug lens usage:
+
+```javascript showLineNumbers
+const DebugExample = createComponent(({ lens }) => {
+  const user = lens.useRefraction(
+    { name: 'Alice', age: 30 }, 
+    { 
+      name: 'currentUser',
+      debug: true // Enables detailed logging in development
+    }
+  );
+
+  // You can also add custom debug logs
+  lens.useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('User effect triggered with:', user.value);
+    }
+  }, [user.value]);
+
+  return <UserDisplay user={user.value} />;
+});
+```
+
+## Integration with Development Tools
+
+Lenses work seamlessly with Refract's development tools:
+
+- **State Inspector**: See all refractions and their current values
+- **Effect Tracker**: Monitor which effects are running and when
+- **Performance Monitor**: Identify unnecessary re-renders and effect calls
+- **Time Travel**: Step back and forth through state changes
+
+```javascript showLineNumbers
+// In development, you can inspect lens state
+window.refractDevTools.inspectComponent('MyComponent');
+window.refractDevTools.listActiveEffects();
+window.refractDevTools.showStateChanges();
+```
+
+## Error Handling in Lenses
+
+Properly handle errors in effects to prevent application crashes:
+
+```javascript showLineNumbers
+const RobustComponent = createComponent(({ lens, apiEndpoint }) => {
+  const data = lens.useRefraction(null);
+  const error = lens.useRefraction(null);
+  const loading = lens.useRefraction(false);
+
+  lens.useEffect(async () => {
+    loading.set(true);
+    error.set(null);
+
+    try {
+      const response = await fetch(apiEndpoint);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const result = await response.json();
+      data.set(result);
+    } catch (err) {
+      error.set(err.message);
+      console.error('API call failed:', err);
+    } finally {
+      loading.set(false);
+    }
+  }, [apiEndpoint]);
+
+  if (loading.value) return <div>Loading...</div>;
+  if (error.value) return <div>Error: {error.value}</div>;
+  if (!data.value) return <div>No data available</div>;
+
+  return <DataDisplay data={data.value} />;
+});
+```
+
+## Next Steps
+
+Now that you understand how lenses provide controlled access to reactive state and effects, you're ready to learn about optical composition—the system for creating reusable patterns and sharing stateful logic between components. This is where the real power of Refract's architecture shines through.

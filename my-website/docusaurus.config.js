@@ -82,32 +82,26 @@ const config = {
             sidebarId: "tutorialSidebar",
             position: "left",
             label: "Docs",
-
           },
-
           {
-            to: "/api",
+            type: "docSidebar",
+            sidebarId: "apiSidebar",
+            position: "left",
             label: "API",
-            position: "left",
           },
-
-          {
-            to: "/examples",
+           {
+            type: "docSidebar",
+            sidebarId: "examplesSidebar",
+            position: "left",
             label: "Examples",
-            position: "left",
           },
 
           {
-            to: "/changelog",
-            label: "Changelog",
-            position: "left",
+            type: "docSidebar",
+            sidebarId: "changelogSidebar",
+            position: "right",
+            label: "ChangeLog",
           },
-
-          // {
-          //     href: 'https://github.com/facebook/docusaurus',
-          //     label: 'GitHub',
-          //     position: 'right',
-          //   },
 
           {
             href: "https://github.com/facebook/docusaurus",

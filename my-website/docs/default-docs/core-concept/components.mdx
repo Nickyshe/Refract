@@ -1,0 +1,238 @@
+---
+title: "Components"
+sidebar_position: 1
+sidebar_label: "Components"
+slug: /components
+---
+
+Components are the building blocks of any Refract application. Think of them as reusable pieces of your UI that combine both appearance and behavior into a single, manageable unit.
+
+## What Are Components?
+
+In Refract, a component is simply a function that describes what your UI should look like and how it should behave. Unlike traditional JavaScript where you might manipulate the DOM directly, components let you write declarative code that says "here's what I want" rather than "here's how to get it."
+
+```javascript showLineNumbers
+import { createComponent } from 'refract';
+
+const WelcomeMessage = createComponent(({ lens }) => {
+  return <h1>Welcome to Refract!</h1>;
+});
+```
+
+## Creating Components
+
+Every component starts with the `createComponent()` function. This isn't just syntactic sugar—it's how Refract knows to track your component's state and optimize its rendering.
+
+```javascript showLineNumbers
+const Button = createComponent(({ lens }) => {
+  const isPressed = lens.useRefraction(false);
+  
+  return (
+    <button 
+      onMouseDown={() => isPressed.set(true)}
+      onMouseUp={() => isPressed.set(false)}
+      className={isPressed.value ? 'pressed' : ''}
+    >
+      Click me!
+    </button>
+  );
+});
+```
+
+## The Lens Parameter
+
+Every component receives a `lens` parameter. Think of this as your component's toolkit—it gives you access to:
+
+- **State management** through refractions
+- **Side effects** like API calls or DOM manipulation  
+- **Lifecycle events** when the component mounts or unmounts
+
+The lens keeps everything organized and helps Refract understand what your component needs to function properly.
+
+## Pure Functions, Predictable Results
+
+Components in Refract are pure functions. This means:
+
+- Given the same inputs (props and state), they always produce the same output
+- They don't modify anything outside themselves
+- They're easy to test, debug, and reason about
+
+```javascript showLineNumbers
+// This is predictable - same inputs always give same result
+const UserCard = createComponent(({ lens, user }) => {
+  return (
+    <div>
+      <h3>{user.name}</h3>
+      <p>{user.email}</p>
+    </div>
+  );
+});
+
+// Avoid this - unpredictable behavior
+const BadExample = createComponent(({ lens }) => {
+  // Don't do this! Modifying global state makes components unpredictable
+  window.someGlobalVariable = 'changed';
+  return <div>Bad component</div>;
+});
+```
+
+## Passing Data with Props
+
+Components can receive data through props, just like function parameters:
+
+```javascript showLineNumbers
+const ProductCard = createComponent(({ lens, product, onAddToCart }) => {
+  return (
+    <div className="product-card">
+      <h3>{product.name}</h3>
+      <p>${product.price}</p>
+      <button onClick={() => onAddToCart(product.id)}>
+        Add to Cart
+      </button>
+    </div>
+  );
+});
+
+// Using the component
+const App = createComponent(({ lens }) => {
+  const handleAddToCart = (productId) => {
+    console.log('Adding product:', productId);
+  };
+
+  return (
+    <ProductCard 
+      product={{ id: 1, name: 'Widget', price: 29.99 }}
+      onAddToCart={handleAddToCart}
+    />
+  );
+});
+```
+
+## Local State with Refractions
+
+When a component needs to remember something (like whether a dropdown is open, or what the user typed in a form), you use refractions through the lens:
+
+```javascript showLineNumbers
+const SearchBox = createComponent(({ lens, onSearch }) => {
+  const query = lens.useRefraction('');
+  const isLoading = lens.useRefraction(false);
+
+  const handleSubmit = async () => {
+    isLoading.set(true);
+    await onSearch(query.value);
+    isLoading.set(false);
+  };
+
+  return (
+    <div>
+      <input 
+        value={query.value}
+        onChange={(e) => query.set(e.target.value)}
+        placeholder="Search..."
+      />
+      <button onClick={handleSubmit} disabled={isLoading.value}>
+        {isLoading.value ? 'Searching...' : 'Search'}
+      </button>
+    </div>
+  );
+});
+```
+
+## Composing Components
+
+The real power comes from combining simple components into more complex ones:
+
+```javascript showLineNumbers
+const TodoItem = createComponent(({ lens, todo, onToggle, onDelete }) => {
+  return (
+    <li className={todo.completed ? 'completed' : ''}>
+      <input 
+        type="checkbox" 
+        checked={todo.completed}
+        onChange={() => onToggle(todo.id)}
+      />
+      <span>{todo.text}</span>
+      <button onClick={() => onDelete(todo.id)}>Delete</button>
+    </li>
+  );
+});
+
+const TodoList = createComponent(({ lens }) => {
+  const todos = lens.useRefraction([
+    { id: 1, text: 'Learn Refract', completed: false },
+    { id: 2, text: 'Build an app', completed: false }
+  ]);
+
+  const toggleTodo = (id) => {
+    todos.set(todos.value.map(todo => 
+      todo.id === id ? { ...todo, completed: !todo.completed } : todo
+    ));
+  };
+
+  const deleteTodo = (id) => {
+    todos.set(todos.value.filter(todo => todo.id !== id));
+  };
+
+  return (
+    <ul>
+      {todos.value.map(todo => 
+        <TodoItem 
+          key={todo.id}
+          todo={todo}
+          onToggle={toggleTodo}
+          onDelete={deleteTodo}
+        />
+      )}
+    </ul>
+  );
+});
+```
+
+## Component Best Practices
+
+1. **Keep components small and focused**
+Each component should do one thing well. If you find yourself writing a component that handles user authentication, displays a product list, AND manages shopping cart state, it's probably too big.
+
+2. **Use descriptive names**
+`UserProfileCard` is much clearer than `Card`. `SubmitButton` is better than `Button`.
+
+3. **Extract reusable logic**
+If multiple components need the same behavior, consider creating a custom optic (we'll cover this in the optical composition section).
+
+4. **Handle loading and error states**
+Real applications need to handle when things go wrong or take time to load:
+
+```javascript showLineNumbers
+const UserProfile = createComponent(({ lens, userId }) => {
+  const user = lens.useRefraction(null);
+  const loading = lens.useRefraction(true);
+  const error = lens.useRefraction(null);
+
+  lens.useEffect(async () => {
+    try {
+      loading.set(true);
+      const userData = await fetchUser(userId);
+      user.set(userData);
+    } catch (err) {
+      error.set(err.message);
+    } finally {
+      loading.set(false);
+    }
+  }, [userId]);
+
+  if (loading.value) return <div>Loading...</div>;
+  if (error.value) return <div>Error: {error.value}</div>;
+  if (!user.value) return <div>User not found</div>;
+
+  return (
+    <div>
+      <h2>{user.value.name}</h2>
+      <p>{user.value.email}</p>
+    </div>
+  );
+});
+```
+
+## Next Steps
+
+Now that you understand components, you're ready to dive deeper into refractions—the reactive state system that makes your components come alive. Components provide the structure, but refractions provide the dynamics that make your app interactive and responsive.

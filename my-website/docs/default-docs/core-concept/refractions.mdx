@@ -1,0 +1,370 @@
+---
+title: "Refractions"
+sidebar_position: 2
+sidebar_label: "Refractions"
+slug: /refractions
+---
+
+Refractions are Refract's way of handling reactive state—data that automatically updates your UI when it changes. Think of them as smart variables that know how to notify your components when their values change.
+
+## What Are Refractions?
+
+A refraction is like a container that holds a value. When you change what's inside the container, any component using that refraction automatically re-renders to reflect the new value. This happens seamlessly without you having to manually update the DOM.
+
+```javascript showLineNumbers
+import { useRefraction } from 'refract';
+
+// Create a refraction with an initial value
+const count = useRefraction(0);
+
+// Read the current value
+console.log(count.value); // 0
+
+// Update the value - any components using this will re-render
+count.set(5);
+console.log(count.value); // 5
+```
+
+## Creating Refractions
+
+There are several ways to create refractions depending on where you need them:
+
+### Local Refractions (Component-scoped)
+
+Most of the time, you'll create refractions inside components using the lens:
+
+```javascript showLineNumbers
+const Counter = createComponent(({ lens }) => {
+  // This refraction only exists within this component
+  const count = lens.useRefraction(0);
+  
+  return (
+    <div>
+      <p>Count: {count.value}</p>
+      <button onClick={() => count.set(count.value + 1)}>
+        Increment
+      </button>
+    </div>
+  );
+});
+```
+
+### Global Refractions
+
+Sometimes you need state that multiple components can access—like user authentication status or app theme:
+
+```javascript showLineNumbers
+import { useRefraction } from 'refract';
+
+// Created outside of any component - available everywhere
+const currentUser = useRefraction(null);
+const theme = useRefraction('light');
+
+const Header = createComponent(({ lens }) => {
+  return (
+    <div className={`header ${theme.value}-theme`}>
+      {currentUser.value ? (
+        <span>Welcome, {currentUser.value.name}!</span>
+      ) : (
+        <button onClick={() => showLoginModal()}>Login</button>
+      )}
+    </div>
+  );
+});
+
+const ThemeToggle = createComponent(({ lens }) => {
+  const toggleTheme = () => {
+    theme.set(theme.value === 'light' ? 'dark' : 'light');
+  };
+
+  return (
+    <button onClick={toggleTheme}>
+      Switch to {theme.value === 'light' ? 'dark' : 'light'} mode
+    </button>
+  );
+});
+```
+
+## Working with Different Data Types
+
+Refractions can hold any type of JavaScript value:
+
+### Simple Values
+
+```javascript showLineNumbers
+const name = lens.useRefraction('John');
+const age = lens.useRefraction(25);
+const isVisible = lens.useRefraction(true);
+```
+
+### Objects
+
+When working with objects, remember that you need to create a new object to trigger updates:
+
+```javascript showLineNumbers
+const user = lens.useRefraction({
+  name: 'Alice',
+  email: 'alice@example.com',
+  preferences: { theme: 'dark', notifications: true }
+});
+
+// ✅ Good - creates a new object
+const updateEmail = (newEmail) => {
+  user.set({
+    ...user.value,
+    email: newEmail
+  });
+};
+
+// ❌ Bad - mutates the existing object (won't trigger re-render)
+const badUpdateEmail = (newEmail) => {
+  user.value.email = newEmail;
+  user.set(user.value); // This won't work as expected
+};
+```
+
+### Arrays
+
+Similar to objects, arrays need to be replaced with new arrays:
+
+```javascript showLineNumbers
+const todos = lens.useRefraction([]);
+
+// ✅ Good - adding a new todo
+const addTodo = (text) => {
+  todos.set([
+    ...todos.value,
+    { id: Date.now(), text, completed: false }
+  ]);
+};
+
+// ✅ Good - removing a todo
+const removeTodo = (id) => {
+  todos.set(todos.value.filter(todo => todo.id !== id));
+};
+
+// ✅ Good - updating a todo
+const toggleTodo = (id) => {
+  todos.set(todos.value.map(todo =>
+    todo.id === id ? { ...todo, completed: !todo.completed } : todo
+  ));
+};
+```
+
+## Computed Refractions
+
+Sometimes you want a refraction whose value depends on other refractions. You can create computed refractions that automatically update when their dependencies change:
+
+```javascript showLineNumbers
+const firstName = lens.useRefraction('John');
+const lastName = lens.useRefraction('Doe');
+
+// This will automatically update when firstName or lastName changes
+const fullName = lens.useComputed(() => {
+  return `${firstName.value} ${lastName.value}`;
+}, [firstName, lastName]);
+
+const UserCard = createComponent(({ lens }) => {
+  return (
+    <div>
+      <h3>{fullName.value}</h3> {/* Automatically shows "John Doe" */}
+      <input 
+        value={firstName.value}
+        onChange={(e) => firstName.set(e.target.value)}
+        placeholder="First name"
+      />
+      <input 
+        value={lastName.value}
+        onChange={(e) => lastName.set(e.target.value)}
+        placeholder="Last name"
+      />
+    </div>
+  );
+});
+```
+
+## Watching for Changes
+
+You can set up listeners that run when refractions change:
+
+```javascript showLineNumbers
+const shoppingCart = useRefraction([]);
+
+// Watch for changes and save to localStorage
+shoppingCart.watch((newCart) => {
+  localStorage.setItem('cart', JSON.stringify(newCart));
+});
+
+// Or inside a component, use effects
+const CartPersistence = createComponent(({ lens }) => {
+  const cart = lens.useRefraction([]);
+
+  lens.useEffect(() => {
+    // Save to localStorage whenever cart changes
+    localStorage.setItem('cart', JSON.stringify(cart.value));
+  }, [cart.value]);
+
+  lens.useEffect(() => {
+    // Load from localStorage when component mounts
+    const savedCart = localStorage.getItem('cart');
+    if (savedCart) {
+      cart.set(JSON.parse(savedCart));
+    }
+  }, []); // Empty dependency array = runs once on mount
+
+  return <ShoppingCartDisplay items={cart.value} />;
+});
+```
+
+## Performance Tips
+
+### Avoid Unnecessary Re-renders
+
+Only components that actually use a refraction will re-render when it changes:
+
+```javascript showLineNumbers
+const expensiveData = useRefraction(null);
+
+const ExpensiveComponent = createComponent(({ lens }) => {
+  // This component won't re-render when expensiveData changes
+  // because it doesn't use expensiveData.value anywhere
+  return <div>I don't use expensive data</div>;
+});
+
+const DataDisplay = createComponent(({ lens }) => {
+  // Only this component re-renders when expensiveData changes
+  return <div>{expensiveData.value}</div>;
+});
+```
+
+### Batch Updates
+
+When you need to update multiple refractions at once, do it in a single function to avoid multiple re-renders:
+
+```javascript showLineNumbers
+const updateUserProfile = (newName, newEmail, newAge) => {
+  // Instead of three separate updates...
+  // name.set(newName);
+  // email.set(newEmail);
+  // age.set(newAge);
+  
+  // Do this to batch the updates
+  lens.batch(() => {
+    name.set(newName);
+    email.set(newEmail);
+    age.set(newAge);
+  });
+  // Only one re-render happens after all updates are complete
+};
+```
+
+## Common Patterns
+
+### Form Handling
+
+```javascript showLineNumbers
+const ContactForm = createComponent(({ lens, onSubmit }) => {
+  const formData = lens.useRefraction({
+    name: '',
+    email: '',
+    message: ''
+  });
+
+  const updateField = (field, value) => {
+    formData.set({
+      ...formData.value,
+      [field]: value
+    });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSubmit(formData.value);
+    // Reset form
+    formData.set({ name: '', email: '', message: '' });
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        value={formData.value.name}
+        onChange={(e) => updateField('name', e.target.value)}
+        placeholder="Name"
+      />
+      <input
+        value={formData.value.email}
+        onChange={(e) => updateField('email', e.target.value)}
+        placeholder="Email"
+      />
+      <textarea
+        value={formData.value.message}
+        onChange={(e) => updateField('message', e.target.value)}
+        placeholder="Message"
+      />
+      <button type="submit">Send</button>
+    </form>
+  );
+});
+```
+
+### Loading States
+
+```javascript showLineNumbers
+const UserList = createComponent(({ lens }) => {
+  const users = lens.useRefraction([]);
+  const loading = lens.useRefraction(false);
+  const error = lens.useRefraction(null);
+
+  const fetchUsers = async () => {
+    loading.set(true);
+    error.set(null);
+    
+    try {
+      const response = await fetch('/api/users');
+      const userData = await response.json();
+      users.set(userData);
+    } catch (err) {
+      error.set('Failed to load users');
+    } finally {
+      loading.set(false);
+    }
+  };
+
+  // Fetch users when component mounts
+  lens.useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  if (loading.value) return <div>Loading users...</div>;
+  if (error.value) return <div>Error: {error.value}</div>;
+
+  return (
+    <ul>
+      {users.value.map(user => (
+        <li key={user.id}>{user.name}</li>
+      ))}
+    </ul>
+  );
+});
+```
+
+## Debugging Refractions
+
+Refract provides helpful tools for debugging:
+
+```javascript showLineNumbers
+// Add a name to your refraction for easier debugging
+const counter = lens.useRefraction(0, { name: 'counterValue' });
+
+// Enable development mode to see refraction updates in console
+const config = {
+  development: true,
+  logStateChanges: true
+};
+
+// You'll see logs like: "Refraction 'counterValue' changed from 0 to 1"
+```
+
+## Next Steps
+
+Refractions handle your data, but to organize and reuse stateful logic across components, you'll want to learn about lenses—the system that provides controlled access to refractions and side effects within your components.

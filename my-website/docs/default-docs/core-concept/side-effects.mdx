@@ -1,0 +1,938 @@
+---
+title: "Side Effects"
+sidebar_position: 5
+sidebar_label: "Side Effects"
+slug: /side-effects
+---
+
+Side effects are operations that reach outside your component's pure rendering logic—things like API calls, timers, DOM manipulation, or subscribing to external data sources. Refract provides several tools to handle side effects safely and predictably.
+
+## What Are Side Effects?
+
+In the context of UI frameworks, a side effect is anything that isn't directly related to rendering your component's output. Pure components take props and state, then return JSX. Side effects are everything else:
+
+- Fetching data from an API
+- Setting up event listeners
+- Starting or clearing timers
+- Manually updating the DOM
+- Subscribing to external data sources
+- Sending analytics events
+
+```javascript showLineNumbers
+// ✅ Pure rendering - no side effects
+const DisplayUser = createComponent(({ lens, user }) => {
+  return (
+    <div>
+      <h2>{user.name}</h2>
+      <p>{user.email}</p>
+    </div>
+  );
+});
+
+// ❌ Impure - contains side effects
+const BadUserProfile = createComponent(({ lens, userId }) => {
+  // Side effect happening during render - this is bad!
+  fetch(`/api/users/${userId}`)
+    .then(response => response.json())
+    .then(user => {
+      // This won't work properly and could cause infinite loops
+      document.getElementById('user-name').textContent = user.name;
+    });
+  
+  return <div id="user-name">Loading...</div>;
+});
+
+// ✅ Proper side effect handling
+const GoodUserProfile = createComponent(({ lens, userId }) => {
+  const user = lens.useRefraction(null);
+  const loading = lens.useRefraction(true);
+  
+  // Side effect properly handled in useEffect
+  lens.useEffect(async () => {
+    loading.set(true);
+    try {
+      const response = await fetch(`/api/users/${userId}`);
+      const userData = await response.json();
+      user.set(userData);
+    } finally {
+      loading.set(false);
+    }
+  }, [userId]);
+  
+  if (loading.value) return <div>Loading...</div>;
+  if (!user.value) return <div>User not found</div>;
+  
+  return (
+    <div>
+      <h2>{user.value.name}</h2>
+      <p>{user.value.email}</p>
+    </div>
+  );
+});
+```
+
+## The `useEffect` Method
+
+The most common way to handle side effects is through `lens.useEffect()`. This method runs after your component renders and provides a clean way to perform side effects.
+
+### Basic Effect Usage
+
+```javascript showLineNumbers
+const TimerComponent = createComponent(({ lens }) => {
+  const seconds = lens.useRefraction(0);
+  
+  lens.useEffect(() => {
+    const intervalId = setInterval(() => {
+      seconds.set(current => current + 1);
+    }, 1000);
+    
+    // Cleanup function - runs when component unmounts or effect re-runs
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, []); // Empty dependency array means this runs once on mount
+  
+  return <div>Timer: {seconds.value} seconds</div>;
+});
+```
+
+### Effects with Dependencies
+
+Effects can watch for changes in specific values and re-run when those values change:
+
+```javascript showLineNumbers
+const SearchResults = createComponent(({ lens, searchQuery }) => {
+  const results = lens.useRefraction([]);
+  const loading = lens.useRefraction(false);
+  
+  lens.useEffect(async () => {
+    if (!searchQuery) {
+      results.set([]);
+      return;
+    }
+    
+    loading.set(true);
+    try {
+      const response = await fetch(`/api/search?q=${searchQuery}`);
+      const data = await response.json();
+      results.set(data);
+    } catch (error) {
+      console.error('Search failed:', error);
+      results.set([]);
+    } finally {
+      loading.set(false);
+    }
+  }, [searchQuery]); // Re-run when searchQuery changes
+  
+  if (loading.value) return <div>Searching...</div>;
+  
+  return (
+    <ul>
+      {results.value.map(result => (
+        <li key={result.id}>{result.title}</li>
+      ))}
+    </ul>
+  );
+});
+```
+
+## The `useFlash` Method
+
+Sometimes you need to run a side effect exactly once after the component renders—like triggering an animation or focusing an input. This is what `useFlash` is for:
+
+```javascript showLineNumbers
+const AnimatedModal = createComponent(({ lens, isVisible }) => {
+  const modalRef = lens.useRefraction(null);
+  
+  lens.useFlash(() => {
+    if (isVisible && modalRef.value) {
+      // Trigger entrance animation
+      modalRef.value.classList.add('animate-in');
+      
+      // Focus the first input
+      const firstInput = modalRef.value.querySelector('input');
+      if (firstInput) firstInput.focus();
+    }
+  });
+  
+  if (!isVisible) return null;
+  
+  return (
+    <div 
+      ref={(el) => modalRef.set(el)}
+      className="modal"
+    >
+      <input placeholder="Enter your name" />
+      <button>Submit</button>
+    </div>
+  );
+});
+```
+
+### Flash vs Effect
+
+Use `useFlash` when you need something to happen once immediately after render, and `useEffect` when you need to respond to changes or set up ongoing operations:
+
+```javascript showLineNumbers
+const NotificationToast = createComponent(({ lens, message, onDismiss }) => {
+  const toastRef = lens.useRefraction(null);
+  
+  // Flash: Trigger entrance animation once
+  lens.useFlash(() => {
+    if (toastRef.value) {
+      toastRef.value.classList.add('slide-in');
+    }
+  });
+  
+  // Effect: Set up auto-dismiss timer
+  lens.useEffect(() => {
+    const timeoutId = setTimeout(onDismiss, 5000);
+    return () => clearTimeout(timeoutId);
+  }, []);
+  
+  return (
+    <div 
+      ref={(el) => toastRef.set(el)}
+      className="toast"
+    >
+      {message}
+      <button onClick={onDismiss}>×</button>
+    </div>
+  );
+});
+```
+
+## Event Listeners and Subscriptions
+
+Managing event listeners is a common side effect pattern:
+
+### Window Events
+
+```javascript showLineNumbers
+const WindowResizeTracker = createComponent(({ lens }) => {
+  const windowSize = lens.useRefraction({
+    width: window.innerWidth,
+    height: window.innerHeight
+  });
+  
+  lens.useEffect(() => {
+    const handleResize = () => {
+      windowSize.set({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
+    
+    window.addEventListener('resize', handleResize);
+    
+    // Cleanup: Remove listener when component unmounts
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+  
+  return (
+    <div>
+      Window size: {windowSize.value.width} × {windowSize.value.height}
+    </div>
+  );
+});
+```
+
+### Keyboard Events
+
+```javascript showLineNumbers
+const KeyboardShortcuts = createComponent(({ lens, onSave, onCancel }) => {
+  lens.useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.metaKey || event.ctrlKey) {
+        switch (event.key) {
+          case 's':
+            event.preventDefault();
+            onSave();
+            break;
+          case 'Escape':
+            event.preventDefault();
+            onCancel();
+            break;
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onSave, onCancel]);
+  
+  return (
+    <div>
+      <p>Press Ctrl+S to save, Escape to cancel</p>
+      {/* Your component content */}
+    </div>
+  );
+});
+```
+
+### WebSocket Subscriptions
+
+```javascript showLineNumbers
+const LiveChatMessages = createComponent(({ lens, roomId }) => {
+  const messages = lens.useRefraction([]);
+  const connectionStatus = lens.useRefraction('disconnected');
+  
+  lens.useEffect(() => {
+    const ws = new WebSocket(`wss://api.example.com/chat/${roomId}`);
+    
+    ws.onopen = () => {
+      connectionStatus.set('connected');
+    };
+    
+    ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      messages.set(current => [...current, message]);
+    };
+    
+    ws.onclose = () => {
+      connectionStatus.set('disconnected');
+    };
+    
+    ws.onerror = () => {
+      connectionStatus.set('error');
+    };
+    
+    // Cleanup: Close WebSocket when component unmounts or roomId changes
+    return () => {
+      ws.close();
+    };
+  }, [roomId]);
+  
+  return (
+    <div>
+      <div className={`status ${connectionStatus.value}`}>
+        Status: {connectionStatus.value}
+      </div>
+      <div className="messages">
+        {messages.value.map(msg => (
+          <div key={msg.id} className="message">
+            <strong>{msg.user}:</strong> {msg.text}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});
+```
+
+## DOM Manipulation
+
+Sometimes you need to directly manipulate DOM elements:
+
+### Focus Management
+
+```javascript showLineNumbers
+const SearchInput = createComponent(({ lens, autoFocus }) => {
+  const inputRef = lens.useRefraction(null);
+  
+  lens.useEffect(() => {
+    if (autoFocus && inputRef.value) {
+      inputRef.value.focus();
+    }
+  }, [autoFocus]);
+  
+  return (
+    <input
+      ref={(el) => inputRef.set(el)}
+      placeholder="Search..."
+    />
+  );
+});
+```
+
+### Scroll Management
+
+```javascript showLineNumbers
+const ScrollToTop = createComponent(({ lens, trigger }) => {
+  lens.useEffect(() => {
+    if (trigger) {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    }
+  }, [trigger]);
+  
+  return null; // This component doesn't render anything visible
+});
+```
+
+### Canvas Drawing
+
+```javascript showLineNumbers
+const CanvasDrawing = createComponent(({ lens, width = 400, height = 300 }) => {
+  const canvasRef = lens.useRefraction(null);
+  const drawing = lens.useRefraction(false);
+  
+  lens.useEffect(() => {
+    const canvas = canvasRef.value;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    let lastX = 0;
+    let lastY = 0;
+    
+    const startDrawing = (e) => {
+      drawing.set(true);
+      const rect = canvas.getBoundingClientRect();
+      lastX = e.clientX - rect.left;
+      lastY = e.clientY - rect.top;
+    };
+    
+    const draw = (e) => {
+      if (!drawing.value) return;
+      
+      const rect = canvas.getBoundingClientRect();
+      const currentX = e.clientX - rect.left;
+      const currentY = e.clientY - rect.top;
+      
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      ctx.lineTo(currentX, currentY);
+      ctx.stroke();
+      
+      lastX = currentX;
+      lastY = currentY;
+    };
+    
+    const stopDrawing = () => {
+      drawing.set(false);
+    };
+    
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+    
+    return () => {
+      canvas.removeEventListener('mousedown', startDrawing);
+      canvas.removeEventListener('mousemove', draw);
+      canvas.removeEventListener('mouseup', stopDrawing);
+      canvas.removeEventListener('mouseout', stopDrawing);
+    };
+  }, []);
+  
+  return (
+    <canvas
+      ref={(el) => canvasRef.set(el)}
+      width={width}
+      height={height}
+      style={{ border: '1px solid #ccc' }}
+    />
+  );
+});
+```
+
+## API Integration Patterns
+
+### Data Fetching with Loading States
+
+```javascript
+const UserList = createComponent(({ lens, filters }) => {
+  const users = lens.useRefraction([]);
+  const loading = lens.useRefraction(false);
+  const error = lens.useRefraction(null);
+  
+  const fetchUsers = async () => {
+    loading.set(true);
+    error.set(null);
+    
+    try {
+      const params = new URLSearchParams(filters);
+      const response = await fetch(`/api/users?${params}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const userData = await response.json();
+      users.set(userData);
+    } catch (err) {
+      error.set(err.message);
+      users.set([]);
+    } finally {
+      loading.set(false);
+    }
+  };
+  
+  lens.useEffect(() => {
+    fetchUsers();
+  }, [JSON.stringify(filters)]); // Re-fetch when filters change
+  
+  if (loading.value) return <div>Loading users...</div>;
+  if (error.value) return <div>Error: {error.value}</div>;
+  
+  return (
+    <div>
+      <button onClick={fetchUsers}>Refresh</button>
+      <ul>
+        {users.value.map(user => (
+          <li key={user.id}>{user.name} - {user.email}</li>
+        ))}
+      </ul>
+    </div>
+  );
+});
+```
+
+### Real-time Updates
+
+```javascript showLineNumbers
+const LiveDataFeed = createComponent(({ lens, feedId }) => {
+  const data = lens.useRefraction([]);
+  const lastUpdate = lens.useRefraction(null);
+  
+  lens.useEffect(() => {
+    let isActive = true;
+    
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/feed/${feedId}/updates`);
+        const updates = await response.json();
+        
+        if (isActive) {
+          data.set(updates);
+          lastUpdate.set(new Date().toLocaleTimeString());
+        }
+      } catch (err) {
+        console.error('Failed to fetch updates:', err);
+      }
+      
+      // Continue polling if component is still active
+      if (isActive) {
+        setTimeout(poll, 5000);
+      }
+    };
+    
+    poll();
+    
+    return () => {
+      isActive = false; // Stop polling when component unmounts
+    };
+  }, [feedId]);
+  
+  return (
+    <div>
+      <div>Last update: {lastUpdate.value || 'Never'}</div>
+      <ul>
+        {data.value.map(item => (
+          <li key={item.id}>{item.content}</li>
+        ))}
+      </ul>
+    </div>
+  );
+});
+```
+
+## Animation and Timing Effects
+
+### CSS Transition Management
+
+```javascript
+const FadeTransition = createComponent(({ lens, visible, children }) => {
+  const elementRef = lens.useRefraction(null);
+  const isTransitioning = lens.useRefraction(false);
+  
+  lens.useEffect(() => {
+    const element = elementRef.value;
+    if (!element) return;
+    
+    isTransitioning.set(true);
+    
+    if (visible) {
+      element.style.display = 'block';
+      element.style.opacity = '0';
+      
+      // Force a reflow
+      element.offsetHeight;
+      
+      element.style.transition = 'opacity 300ms ease-in-out';
+      element.style.opacity = '1';
+    } else {
+      element.style.transition = 'opacity 300ms ease-in-out';
+      element.style.opacity = '0';
+    }
+    
+    const handleTransitionEnd = () => {
+      if (!visible) {
+        element.style.display = 'none';
+      }
+      isTransitioning.set(false);
+      element.removeEventListener('transitionend', handleTransitionEnd);
+    };
+    
+    element.addEventListener('transitionend', handleTransitionEnd);
+    
+    return () => {
+      element.removeEventListener('transitionend', handleTransitionEnd);
+    };
+  }, [visible]);
+  
+  return (
+    <div
+      ref={(el) => elementRef.set(el)}
+      style={{ display: visible ? 'block' : 'none' }}
+    >
+      {children}
+    </div>
+  );
+});
+```
+
+### Countdown Timer
+
+```javascript showLineNumbers
+const CountdownTimer = createComponent(({ lens, targetDate, onComplete }) => {
+  const timeLeft = lens.useRefraction({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0
+  });
+  
+  lens.useEffect(() => {
+    const calculateTimeLeft = () => {
+      const difference = new Date(targetDate) - new Date();
+      
+      if (difference > 0) {
+        return {
+          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+          minutes: Math.floor((difference / 1000 / 60) % 60),
+          seconds: Math.floor((difference / 1000) % 60)
+        };
+      } else {
+        return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+      }
+    };
+    
+    const updateTimer = () => {
+      const time = calculateTimeLeft();
+      timeLeft.set(time);
+      
+      // Check if countdown is complete
+      if (time.days === 0 && time.hours === 0 && time.minutes === 0 && time.seconds === 0) {
+        onComplete();
+        return; // Stop the interval
+      }
+    };
+    
+    updateTimer(); // Initial calculation
+    const intervalId = setInterval(updateTimer, 1000);
+    
+    return () => clearInterval(intervalId);
+  }, [targetDate, onComplete]);
+  
+  return (
+    <div className="countdown">
+      <div className="time-unit">
+        <span className="value">{timeLeft.value.days}</span>
+        <span className="label">Days</span>
+      </div>
+      <div className="time-unit">
+        <span className="value">{timeLeft.value.hours}</span>
+        <span className="label">Hours</span>
+      </div>
+      <div className="time-unit">
+        <span className="value">{timeLeft.value.minutes}</span>
+        <span className="label">Minutes</span>
+      </div>
+      <div className="time-unit">
+        <span className="value">{timeLeft.value.seconds}</span>
+        <span className="label">Seconds</span>
+      </div>
+    </div>
+  );
+});
+```
+
+## Side Effect Best Practices
+
+### Always Clean Up
+
+Every side effect that creates a resource should clean it up:
+
+```javascript showLineNumbers
+// ✅ Good - always cleanup
+lens.useEffect(() => {
+  const eventSource = new EventSource('/api/events');
+  eventSource.onmessage = handleMessage;
+  
+  return () => {
+    eventSource.close(); // Always clean up
+  };
+}, []);
+
+// ❌ Bad - no cleanup (memory leak)
+lens.useEffect(() => {
+  const eventSource = new EventSource('/api/events');
+  eventSource.onmessage = handleMessage;
+  // No cleanup - this will leak resources
+}, []);
+```
+
+### Handle Dependencies Correctly
+
+Include all variables that your effect depends on:
+
+```javascript
+// ✅ Good - all dependencies included
+const SearchComponent = createComponent(({ lens, query, sortBy }) => {
+  const results = lens.useRefraction([]);
+  
+  lens.useEffect(async () => {
+    const response = await fetch(`/api/search?q=${query}&sort=${sortBy}`);
+    const data = await response.json();
+    results.set(data);
+  }, [query, sortBy]); // Both dependencies listed
+});
+
+// ❌ Bad - missing dependencies
+lens.useEffect(async () => {
+  const response = await fetch(`/api/search?q=${query}&sort=${sortBy}`);
+  const data = await response.json();
+  results.set(data);
+}, [query]); // Missing 'sortBy' - effect won't re-run when sortBy changes
+```
+
+### Avoid Infinite Loops
+
+Be careful with dependencies to prevent effects from running continuously:
+
+```javascript showLineNumbers
+// ✅ Good - stable dependencies
+const DataComponent = createComponent(({ lens, config }) => {
+  const data = lens.useRefraction(null);
+  
+  lens.useEffect(async () => {
+    const response = await fetch(config.url);
+    const result = await response.json();
+    data.set(result);
+  }, [config.url]); // Only depend on the specific property
+});
+
+// ❌ Bad - unstable dependency
+lens.useEffect(async () => {
+  const response = await fetch(config.url);
+  const result = await response.json();
+  data.set(result);
+}, [config]); // 'config' might be a new object every render
+```
+
+### Handle Race Conditions
+
+When dealing with async operations, handle the case where a new request starts before the previous one completes:
+
+```javascript
+const AsyncSearch = createComponent(({ lens, searchTerm }) => {
+  const results = lens.useRefraction([]);
+  const loading = lens.useRefraction(false);
+  
+  lens.useEffect(() => {
+    if (!searchTerm) {
+      results.set([]);
+      return;
+    }
+    
+    let cancelled = false;
+    
+    const performSearch = async () => {
+      loading.set(true);
+      
+      try {
+        const response = await fetch(`/api/search?q=${searchTerm}`);
+        const data = await response.json();
+        
+        // Only update state if this effect hasn't been cancelled
+        if (!cancelled) {
+          results.set(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Search failed:', error);
+          results.set([]);
+        }
+      } finally {
+        if (!cancelled) {
+          loading.set(false);
+        }
+      }
+    };
+    
+    performSearch();
+    
+    // Cancel this effect if searchTerm changes before it completes
+    return () => {
+      cancelled = true;
+    };
+  }, [searchTerm]);
+  
+  return (
+    <div>
+      {loading.value && <div>Searching...</div>}
+      <ul>
+        {results.value.map(result => (
+          <li key={result.id}>{result.title}</li>
+        ))}
+      </ul>
+    </div>
+  );
+});
+```
+
+## Debugging Side Effects
+
+### Development Mode Logging
+
+```javascript showLineNumbers
+const DebuggableComponent = createComponent(({ lens, userId }) => {
+  const user = lens.useRefraction(null);
+  
+  lens.useEffect(async () => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Fetching user:', userId);
+    }
+    
+    try {
+      const response = await fetch(`/api/users/${userId}`);
+      const userData = await response.json();
+      user.set(userData);
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('User loaded:', userData);
+      }
+    } catch (error) {
+      console.error('Failed to load user:', error);
+    }
+  }, [userId]);
+  
+  return user.value ? <UserDisplay user={user.value} /> : <div>Loading...</div>;
+});
+```
+
+### Effect Dependency Warnings
+
+Refract can warn you about common effect mistakes in development mode:
+
+```javascript showLineNumbers
+// This will warn in development if dependencies are missing
+lens.useEffect(() => {
+  doSomethingWith(someVariable);
+}, []); // Warning: 'someVariable' is used but not in dependencies
+
+// This will warn about unnecessary dependencies
+lens.useEffect(() => {
+  console.log('Effect ran');
+}, [unnecessaryVariable]); // Warning: 'unnecessaryVariable' is not used in this effect
+```
+
+## Common Side Effect Patterns
+
+### Data Loading with Retry Logic
+
+```javascript showLineNumbers
+function useApiWithRetry(url, maxRetries = 3) {
+  return useOptic((lens) => {
+    const data = lens.useRefraction(null);
+    const loading = lens.useRefraction(false);
+    const error = lens.useRefraction(null);
+    const retryCount = lens.useRefraction(0);
+    
+    const fetchData = async () => {
+      loading.set(true);
+      error.set(null);
+      
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          
+          const result = await response.json();
+          data.set(result);
+          retryCount.set(0);
+          return;
+        } catch (err) {
+          if (attempt === maxRetries) {
+            error.set(`Failed after ${maxRetries + 1} attempts: ${err.message}`);
+          } else {
+            retryCount.set(attempt + 1);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+          }
+        }
+      }
+      
+      loading.set(false);
+    };
+    
+    lens.useEffect(() => {
+      if (url) fetchData();
+    }, [url]);
+    
+    return {
+      data: data.value,
+      loading: loading.value,
+      error: error.value,
+      retryCount: retryCount.value,
+      refetch: fetchData
+    };
+  });
+}
+```
+
+### Intersection Observer
+
+```javascript showLineNumbers
+const LazyImage = createComponent(({ lens, src, alt, placeholder }) => {
+  const imageRef = lens.useRefraction(null);
+  const isVisible = lens.useRefraction(false);
+  const hasLoaded = lens.useRefraction(false);
+  
+  lens.useEffect(() => {
+    const element = imageRef.value;
+    if (!element || !('IntersectionObserver' in window)) {
+      isVisible.set(true);
+      return;
+    }
+    
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          isVisible.set(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    
+    observer.observe(element);
+    
+    return () => observer.disconnect();
+  }, []);
+  
+  return (
+    <div ref={(el) => imageRef.set(el)}>
+      {isVisible.value ? (
+        <img 
+          src={src} 
+          alt={alt}
+          onLoad={() => hasLoaded.set(true)}
+          style={{ opacity: hasLoaded.value ? 1 : 0, transition: 'opacity 0.3s' }}
+        />
+      ) : (
+        <div className="placeholder">{placeholder || 'Loading...'}</div>
+      )}
+    </div>
+  );
+});
+```
+
+Side effects are a powerful part of Refract that let you integrate with the broader web platform. By following the patterns and best practices outlined here, you can handle complex interactions while keeping your code predictable and maintainable.
+
+The key is to always think about cleanup, handle your dependencies correctly, and keep your effects focused on single responsibilities. This makes your components more reliable and easier to debug when things go wrong.
