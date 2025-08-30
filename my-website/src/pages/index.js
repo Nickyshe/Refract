@@ -3,26 +3,20 @@
 // import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 // import Layout from '@theme/Layout';
 // import HomepageFeatures from '@site/src/components/HomepageFeatures';
-
 // import Heading from '@theme/Heading';
 // import styles from './index.module.css';
 
 // function HomepageHeader() {
 //   const {siteConfig} = useDocusaurusContext();
 //   return (
-//     <header className={clsx('hero hero--primary', styles.heroBanner)}>
+//     <header className={clsx('hero', styles.heroBanner)}>
 //       <div className="container">
-//         <Heading as="h1" className="hero__title">
-//           {siteConfig.title}
+//         <Heading as="h1" className={styles.heroTitle}>
+//           Welcome to Refract Documentation
 //         </Heading>
-//         <p className="hero__subtitle">{siteConfig.tagline}</p>
-//         <div className={styles.buttons}>
-//           <Link
-//             className="button button--secondary button--lg"
-//             to="/docs/getting-started/intro">
-//             Docusaurus Tutorial - 5min ⏱️
-//           </Link>
-//         </div>
+//         <p className={styles.heroSubtitle}>
+//           A powerful framework for building reactive applications with optical state management and compositional components
+//         </p>
 //       </div>
 //     </header>
 //   );
@@ -32,12 +26,34 @@
 //   const {siteConfig} = useDocusaurusContext();
 //   return (
 //     <Layout
-//       title={`Hello from ${siteConfig.title}`}
-//       description="Description will go into a meta tag in <head />">
-//       <HomepageHeader />
-//       <main>
-//         <HomepageFeatures />
-//       </main>
+//       title={`${siteConfig.title}`}
+//       description="A powerful framework for building reactive applications with optical state management"
+//       wrapperClassName="homepage">
+//       <div className={styles.homepageWrapper}>
+//         <HomepageHeader />
+//         <main>
+//           <HomepageFeatures />
+//         </main>
+//       </div>
 //     </Layout>
 //   );
 // }
+
+
+import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
+import Layout from '@theme/Layout';
+import RefractLandingPage from '@site/src/components/RefractLandingPage';
+
+export default function Home() {
+  const {siteConfig} = useDocusaurusContext();
+  return (
+    <Layout
+      title={`${siteConfig.title}`}
+      description="A powerful framework for building reactive applications with optical state management"
+      wrapperClassName="homepage"
+      noFooter={false} // Set to true if you want to hide footer on homepage
+    >
+      <RefractLandingPage />
+    </Layout>
+  );
+}

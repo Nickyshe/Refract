@@ -46,17 +46,33 @@ const config = {
       "classic",
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
-        docs: {
-          routeBasePath: "/",
-          sidebarPath: "./sidebars.js",
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          showLastUpdateTime: true,
-          showLastUpdateAuthor: true,
-          editUrl:
-            "https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/",
-        },
-        pages: false,
+
+      //  Change this section in your config
+docs: {
+  routeBasePath: "/docs", // Change from "/" to "/docs"
+  sidebarPath: "./sidebars.js",
+  showLastUpdateTime: true,
+  showLastUpdateAuthor: true,
+  editUrl:
+    "https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/",
+},
+pages: {
+  path: 'src/pages',
+  routeBasePath: '/',
+}, // Change from "pages: false" to this
+
+
+        // docs: {
+        //   routeBasePath: "/",
+        //   sidebarPath: "./sidebars.js",
+        //   // Please change this to your repo.
+        //   // Remove this to remove the "edit this page" links.
+        //   showLastUpdateTime: true,
+        //   showLastUpdateAuthor: true,
+        //   editUrl:
+        //     "https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/",
+        // },
+        // pages: false,
 
         theme: {
           customCss: "./src/css/custom.css",
@@ -82,6 +98,7 @@ const config = {
             sidebarId: "tutorialSidebar",
             position: "left",
             label: "Docs",
+            to: "/docs",
           },
           {
             type: "docSidebar",
