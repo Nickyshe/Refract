@@ -7,19 +7,19 @@ const RefractLandingPage = () => {
       title: "Getting Started",
       description: "Create your first Refract project and learn the fundamentals of optical state management",
       icon: <Book style={{ width: '24px', height: '24px' }} />,
-      href: "/getting-started/introduction"
+      href: "/docs/introduction"
     },
     {
       title: "API Reference", 
       description: "Complete reference documentation for all Refract APIs, hooks, and methods",
       icon: <Code style={{ width: '24px', height: '24px' }} />,
-      href: "/api-reference/createComponent"
+      href: "/docs/api/use-optic-api"
     },
     {
       title: "Guides",
       description: "Practical guides and best practices for building scalable Refract applications", 
       icon: <Lightbulb style={{ width: '24px', height: '24px' }} />,
-      href: "/guides/state-management"
+      href: "/docs/default-docs/guides/state-management"
     },
     {
       title: "Examples",
