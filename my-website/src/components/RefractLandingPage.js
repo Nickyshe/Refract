@@ -13,19 +13,19 @@ const RefractLandingPage = () => {
       title: "API Reference", 
       description: "Complete reference documentation for all Refract APIs, hooks, and methods",
       icon: <Code style={{ width: '24px', height: '24px' }} />,
-      href: "/docs/api/use-optic-api"
+      href: "/docs/create-component"
     },
     {
       title: "Guides",
       description: "Practical guides and best practices for building scalable Refract applications", 
       icon: <Lightbulb style={{ width: '24px', height: '24px' }} />,
-      href: "/docs/default-docs/guides/state-management"
+      href: "/docs/state-management"
     },
     {
       title: "Examples",
       description: "Real-world examples and interactive demonstrations to get you started quickly",
       icon: <PlayCircle style={{ width: '24px', height: '24px' }} />,
-      href: "/examples/todo-app"
+      href: "/docs/hello-world"
     }
   ];
 

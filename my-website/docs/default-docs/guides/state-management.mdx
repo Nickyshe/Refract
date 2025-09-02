@@ -1,3 +1,415 @@
 ---
+title: "State Management"
 sidebar_position: 1
+sidebar_label: "State Management"
+slug: /state-management
 ---
+
+
+
+Refract's state management system centers around **refractions**—reactive units of state that automatically update your UI when data changes. This guide covers how to manage state effectively in Refract applications.
+
+## What are refractions?
+
+A refraction is a reactive state container that holds a value and notifies components when that value changes. Unlike traditional state management where you manually trigger re-renders, refractions automatically update any component that uses their value.
+
+```javascript
+import { useRefraction } from "refract";
+
+const count = useRefraction(0);
+console.log(count.value); // 0
+
+count.set(5);
+console.log(count.value); // 5
+```
+
+## Local component state
+
+Use `lens.useRefraction()` to create state that's scoped to a single component. This is ideal for form inputs, toggles, and other component-specific data.
+
+```javascript
+import { createComponent } from "refract";
+
+const LoginForm = createComponent(({ lens }) => {
+  const email = lens.useRefraction("");
+  const password = lens.useRefraction("");
+  const isSubmitting = lens.useRefraction(false);
+
+  const handleSubmit = async () => {
+    isSubmitting.set(true);
+    try {
+      await login(email.value, password.value);
+    } finally {
+      isSubmitting.set(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input 
+        type="email"
+        value={email.value}
+        onChange={(e) => email.set(e.target.value)}
+      />
+      <input 
+        type="password"
+        value={password.value}
+        onChange={(e) => password.set(e.target.value)}
+      />
+      <button disabled={isSubmitting.value} type="submit">
+        {isSubmitting.value ? "Logging in..." : "Log in"}
+      </button>
+    </form>
+  );
+});
+```
+
+## Global state
+
+Create refractions outside components to share state across your application. Global refractions persist throughout your app's lifetime.
+
+```javascript
+// store/user.js
+import { useRefraction } from "refract";
+
+export const user = useRefraction(null);
+export const isAuthenticated = useRefraction(false);
+
+export function login(userData) {
+  user.set(userData);
+  isAuthenticated.set(true);
+}
+
+export function logout() {
+  user.set(null);
+  isAuthenticated.set(false);
+}
+```
+
+```javascript
+// components/Header.js
+import { createComponent } from "refract";
+import { user, isAuthenticated, logout } from "../store/user.js";
+
+const Header = createComponent(() => {
+  return (
+    <header>
+      {isAuthenticated.value ? (
+        <div>
+          Welcome, {user.value?.name}
+          <button onClick={logout}>Log out</button>
+        </div>
+      ) : (
+        <button>Log in</button>
+      )}
+    </header>
+  );
+});
+```
+
+## Derived state
+
+Create computed values that automatically update when their dependencies change using derived refractions.
+
+```javascript
+import { useRefraction, derived } from "refract";
+
+const todos = useRefraction([
+  { id: 1, text: "Learn Refract", completed: false },
+  { id: 2, text: "Build an app", completed: true }
+]);
+
+// Automatically recalculates when todos changes
+const completedCount = derived(() => 
+  todos.value.filter(todo => todo.completed).length
+);
+
+const totalCount = derived(() => todos.value.length);
+
+const progress = derived(() => 
+  totalCount.value === 0 ? 0 : completedCount.value / totalCount.value
+);
+```
+
+Use derived state in components:
+
+```javascript
+const TodoStats = createComponent(() => {
+  return (
+    <div>
+      <p>Completed: {completedCount.value} / {totalCount.value}</p>
+      <progress value={progress.value} max={1} />
+    </div>
+  );
+});
+```
+
+## Updating state
+
+Refractions provide several methods for updating values:
+
+### Direct assignment with `set()`
+
+```javascript
+const name = useRefraction("John");
+name.set("Jane"); // Replace entire value
+```
+
+### Functional updates with `update()`
+
+Use `update()` when the new value depends on the current value:
+
+```javascript
+const count = useRefraction(0);
+count.update(current => current + 1);
+
+const user = useRefraction({ name: "John", age: 30 });
+user.update(current => ({ ...current, age: 31 }));
+```
+
+### Batch updates
+
+Group multiple state changes to prevent unnecessary re-renders:
+
+```javascript
+import { batch } from "refract";
+
+const firstName = useRefraction("");
+const lastName = useRefraction("");
+const email = useRefraction("");
+
+function updateUser(userData) {
+  batch(() => {
+    firstName.set(userData.firstName);
+    lastName.set(userData.lastName);
+    email.set(userData.email);
+  });
+  // Components re-render only once after all updates
+}
+```
+
+## State patterns
+
+### Loading states
+
+Track async operations with dedicated loading refractions:
+
+```javascript
+const TodoList = createComponent(({ lens }) => {
+  const todos = lens.useRefraction([]);
+  const loading = lens.useRefraction(true);
+  const error = lens.useRefraction(null);
+
+  lens.useEffect(async () => {
+    try {
+      loading.set(true);
+      error.set(null);
+      const data = await fetchTodos();
+      todos.set(data);
+    } catch (err) {
+      error.set(err.message);
+    } finally {
+      loading.set(false);
+    }
+  }, []);
+
+  if (loading.value) return <div>Loading...</div>;
+  if (error.value) return <div>Error: {error.value}</div>;
+  
+  return (
+    <ul>
+      {todos.value.map(todo => (
+        <li key={todo.id}>{todo.text}</li>
+      ))}
+    </ul>
+  );
+});
+```
+
+### Form state
+
+Manage complex forms with nested state:
+
+```javascript
+const ContactForm = createComponent(({ lens }) => {
+  const form = lens.useRefraction({
+    personal: {
+      firstName: "",
+      lastName: "",
+      email: ""
+    },
+    preferences: {
+      newsletter: false,
+      notifications: true
+    }
+  });
+
+  const updateField = (path, value) => {
+    form.update(current => {
+      const updated = { ...current };
+      // Simple nested property update
+      const keys = path.split('.');
+      let target = updated;
+      
+      for (let i = 0; i < keys.length - 1; i++) {
+        target[keys[i]] = { ...target[keys[i]] };
+        target = target[keys[i]];
+      }
+      
+      target[keys[keys.length - 1]] = value;
+      return updated;
+    });
+  };
+
+  return (
+    <form>
+      <input 
+        value={form.value.personal.firstName}
+        onChange={(e) => updateField("personal.firstName", e.target.value)}
+      />
+      <input 
+        value={form.value.personal.lastName}
+        onChange={(e) => updateField("personal.lastName", e.target.value)}
+      />
+      <input 
+        type="checkbox"
+        checked={form.value.preferences.newsletter}
+        onChange={(e) => updateField("preferences.newsletter", e.target.checked)}
+      />
+    </form>
+  );
+});
+```
+
+## State debugging
+
+Refract provides built-in tools for debugging state changes:
+
+### State logging
+
+Enable development mode to log all state changes:
+
+```javascript
+// refract.config.js
+export default {
+  development: {
+    logStateChanges: true,
+    logComponents: true
+  }
+};
+```
+
+### State inspection
+
+Access refraction history in development:
+
+```javascript
+const count = useRefraction(0);
+
+// In development mode only
+console.log(count._history); // Array of previous values
+console.log(count._subscribers); // Components using this refraction
+```
+
+## Best practices
+
+### Keep state minimal
+
+Only store what you need in state. Derive other values using computed refractions:
+
+```javascript
+// ❌ Storing redundant state
+const todos = useRefraction([]);
+const completedTodos = useRefraction([]); // Redundant
+const pendingTodos = useRefraction([]);   // Redundant
+
+// ✅ Store minimal state, derive the rest
+const todos = useRefraction([]);
+const completedTodos = derived(() => 
+  todos.value.filter(todo => todo.completed)
+);
+const pendingTodos = derived(() => 
+  todos.value.filter(todo => !todo.completed)
+);
+```
+
+### Use TypeScript
+
+Type your refractions for better developer experience:
+
+```javascript
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+const user = useRefraction<User | null>(null);
+const users = useRefraction<User[]>([]);
+```
+
+### Normalize complex state
+
+For complex data structures, consider normalizing your state:
+
+```javascript
+// ❌ Nested structure that's hard to update
+const state = useRefraction({
+  posts: [
+    { id: 1, title: "Post 1", author: { id: 1, name: "John" } },
+    { id: 2, title: "Post 2", author: { id: 1, name: "John" } }
+  ]
+});
+
+// ✅ Normalized structure
+const users = useRefraction({
+  1: { id: 1, name: "John" }
+});
+
+const posts = useRefraction({
+  1: { id: 1, title: "Post 1", authorId: 1 },
+  2: { id: 2, title: "Post 2", authorId: 1 }
+});
+```
+
+### Colocate related state
+
+Group related refractions together using custom hooks (optics):
+
+```javascript
+// optics/useAuth.js
+import { useRefraction } from "refract";
+
+export function useAuth() {
+  const user = useRefraction(null);
+  const loading = useRefraction(false);
+  const error = useRefraction(null);
+
+  const login = async (credentials) => {
+    loading.set(true);
+    error.set(null);
+    
+    try {
+      const userData = await authenticate(credentials);
+      user.set(userData);
+    } catch (err) {
+      error.set(err.message);
+    } finally {
+      loading.set(false);
+    }
+  };
+
+  const logout = () => {
+    user.set(null);
+    error.set(null);
+  };
+
+  return { user, loading, error, login, logout };
+}
+```
+
+## Next steps
+
+- Learn about [performance optimization](performance-optimization.md) to build fast Refract applications
+- Explore [advanced patterns](advanced-patterns.md) for complex state management scenarios
+- See [testing strategies](testing.md) for testing stateful components

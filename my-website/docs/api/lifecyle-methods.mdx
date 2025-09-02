@@ -1,0 +1,822 @@
+---
+title: "lifecycleMethod"
+sidebar_position: 4
+sidebar_label: "lifecycleMethod"
+slug: /lifecycleMethod
+---
+
+Refract provides several lifecycle methods to help you manage side effects, handle component mounting and unmounting, and control when effects run. These work similarly to React's lifecycle methods but with Refract's reactive approach.
+
+## Reference
+
+The main lifecycle methods available through the `lens` object are:
+
+- **useEffect()** - Runs side effects with dependency tracking
+- **useFlash()** - Runs effects once after component renders
+- **useMemo()** - Memoizes expensive calculations
+- **useCallback()** - Memoizes callback functions
+
+## useEffect
+
+Runs side effects in response to component state changes or prop updates. This is your go-to method for data fetching, subscriptions, and cleanup.
+
+```javascript
+lens.useEffect(effectFunction, dependencies);
+```
+
+### Parameters
+
+- **effectFunction**: A function that runs the side effect. Can return a cleanup function
+- **dependencies**: An array of values that trigger the effect when they change
+
+### Basic usage
+
+```javascript
+const DataComponent = createComponent(({ lens, userId }) => {
+  const user = lens.useRefraction(null);
+  const loading = lens.useRefraction(true);
+  
+  // Effect runs when userId changes
+  lens.useEffect(() => {
+    const fetchUser = async () => {
+      loading.set(true);
+      try {
+        const response = await fetch(`/api/users/${userId}`);
+        const userData = await response.json();
+        user.set(userData);
+      } catch (error) {
+        console.error('Failed to fetch user:', error);
+      } finally {
+        loading.set(false);
+      }
+    };
+    
+    fetchUser();
+  }, [userId]);
+  
+  return loading.value ? <div>Loading...</div> : <div>{user.value?.name}</div>;
+});
+```
+
+### Effect with cleanup
+
+Return a cleanup function to handle subscriptions, timers, or other resources:
+
+```javascript
+const TimerComponent = createComponent(({ lens }) => {
+  const seconds = lens.useRefraction(0);
+  
+  lens.useEffect(() => {
+    const interval = setInterval(() => {
+      seconds.set(current => current + 1);
+    }, 1000);
+    
+    // Cleanup function
+    return () => {
+      clearInterval(interval);
+    };
+  }, []); // Empty dependencies = run once on mount
+  
+  return <div>Timer: {seconds.value}s</div>;
+});
+```
+
+### Multiple effects
+
+You can use multiple effects in the same component:
+
+```javascript
+const UserDashboard = createComponent(({ lens, userId }) => {
+  const user = lens.useRefraction(null);
+  const posts = lens.useRefraction([]);
+  const online = lens.useRefraction(false);
+  
+  // Effect 1: Fetch user data
+  lens.useEffect(() => {
+    fetch(`/api/users/${userId}`)
+      .then(res => res.json())
+      .then(user.set);
+  }, [userId]);
+  
+  // Effect 2: Fetch user's posts
+  lens.useEffect(() => {
+    fetch(`/api/users/${userId}/posts`)
+      .then(res => res.json())
+      .then(posts.set);
+  }, [userId]);
+  
+  // Effect 3: Track online status
+  lens.useEffect(() => {
+    const handleOnline = () => online.set(true);
+    const handleOffline = () => online.set(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+  
+  return (
+    <div>
+      <div className={`status ${online.value ? 'online' : 'offline'}`}>
+        {online.value ? 'Online' : 'Offline'}
+      </div>
+      
+      {user.value && (
+        <div>
+          <h1>{user.value.name}</h1>
+          <p>{posts.value.length} posts</p>
+        </div>
+      )}
+    </div>
+  );
+});
+```
+
+### Conditional effects
+
+Effects only run when their dependencies actually change:
+
+```javascript
+const SearchComponent = createComponent(({ lens }) => {
+  const query = lens.useRefraction('');
+  const results = lens.useRefraction([]);
+  const loading = lens.useRefraction(false);
+  
+  // This effect only runs when query changes and is not empty
+  lens.useEffect(() => {
+    if (!query.value.trim()) {
+      results.set([]);
+      return;
+    }
+    
+    loading.set(true);
+    
+    const searchTimeout = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/search?q=${encodeURIComponent(query.value)}`);
+        const data = await response.json();
+        results.set(data.results);
+      } catch (error) {
+        console.error('Search failed:', error);
+      } finally {
+        loading.set(false);
+      }
+    }, 300); // Debounce search
+    
+    return () => clearTimeout(searchTimeout);
+  }, [query.value]);
+  
+  return (
+    <div>
+      <input
+        value={query.value}
+        onChange={(e) => query.set(e.target.value)}
+        placeholder="Search..."
+      />
+      
+      {loading.value && <div>Searching...</div>}
+      
+      <ul>
+        {results.value.map(result => (
+          <li key={result.id}>{result.title}</li>
+        ))}
+      </ul>
+    </div>
+  );
+});
+```
+
+## useFlash
+
+Runs an effect exactly once after the component renders. Perfect for animations, focus management, or one-time setup that needs the DOM to be ready.
+
+```javascript
+lens.useFlash(effectFunction);
+```
+
+### Parameters
+
+- **effectFunction**: A function that runs once after render
+
+### Animation example
+
+```javascript
+const FadeInComponent = createComponent(({ lens, children }) => {
+  const elementRef = lens.useRef();
+  
+  lens.useFlash(() => {
+    const element = elementRef.current;
+    if (element) {
+      element.style.opacity = '0';
+      element.style.transition = 'opacity 0.5s ease-in-out';
+      
+      // Trigger fade-in
+      requestAnimationFrame(() => {
+        element.style.opacity = '1';
+      });
+    }
+  });
+  
+  return (
+    <div ref={elementRef}>
+      {children}
+    </div>
+  );
+});
+```
+
+### Focus management
+
+```javascript
+const AutoFocusInput = createComponent(({ lens, ...props }) => {
+  const inputRef = lens.useRef();
+  
+  lens.useFlash(() => {
+    inputRef.current?.focus();
+  });
+  
+  return <input ref={inputRef} {...props} />;
+});
+```
+
+### Integration setup
+
+```javascript
+const AnalyticsTracker = createComponent(({ lens, pageName }) => {
+  lens.useFlash(() => {
+    // Track page view once after component mounts
+    if (typeof gtag !== 'undefined') {
+      gtag('event', 'page_view', {
+        page_title: pageName,
+        page_location: window.location.href
+      });
+    }
+  });
+  
+  return null; // This component doesn't render anything
+});
+```
+
+## useMemo
+
+Memoizes expensive calculations so they only run when their dependencies change. Use this to optimize performance when you have computationally expensive operations.
+
+```javascript
+const memoizedValue = lens.useMemo(computeFunction, dependencies);
+```
+
+### Parameters
+
+- **computeFunction**: A function that returns the value to memoize
+- **dependencies**: An array of values that trigger recalculation
+
+### Expensive calculations
+
+```javascript
+const DataVisualization = createComponent(({ lens, rawData, filterCriteria }) => {
+  // This expensive calculation only runs when rawData or filterCriteria change
+  const processedData = lens.useMemo(() => {
+    console.log('Processing data...'); // You'll see this only when needed
+    
+    return rawData
+      .filter(item => item.category === filterCriteria.category)
+      .map(item => ({
+        ...item,
+        normalizedValue: (item.value - filterCriteria.min) / (filterCriteria.max - filterCriteria.min)
+      }))
+      .sort((a, b) => b.normalizedValue - a.normalizedValue);
+  }, [rawData, filterCriteria]);
+  
+  return (
+    <div>
+      <h2>Data Visualization ({processedData.length} items)</h2>
+      {processedData.map(item => (
+        <div key={item.id} className="data-item">
+          <span>{item.name}</span>
+          <div 
+            className="bar"
+            style={{ width: `${item.normalizedValue * 100}%` }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+});
+```
+
+### Complex derived state
+
+```javascript
+const ShoppingCart = createComponent(({ lens }) => {
+  const items = lens.useRefraction([
+    { id: 1, name: 'Laptop', price: 999, quantity: 1, taxRate: 0.08 },
+    { id: 2, name: 'Mouse', price: 25, quantity: 2, taxRate: 0.08 },
+    { id: 3, name: 'Book', price: 15, quantity: 3, taxRate: 0.0 } // Books are tax-free
+  ]);
+  
+  const discount = lens.useRefraction(0.1); // 10% discount
+  
+  // Memoize complex calculations
+  const cartSummary = lens.useMemo(() => {
+    const subtotal = items.value.reduce(
+      (sum, item) => sum + (item.price * item.quantity), 
+      0
+    );
+    
+    const taxableAmount = items.value.reduce(
+      (sum, item) => sum + (item.price * item.quantity * item.taxRate), 
+      0
+    );
+    
+    const discountAmount = subtotal * discount.value;
+    const finalTotal = subtotal + taxableAmount - discountAmount;
+    
+    return {
+      subtotal: subtotal.toFixed(2),
+      taxAmount: taxableAmount.toFixed(2),
+      discountAmount: discountAmount.toFixed(2),
+      total: finalTotal.toFixed(2),
+      itemCount: items.value.reduce((sum, item) => sum + item.quantity, 0)
+    };
+  }, [items.value, discount.value]);
+  
+  return (
+    <div>
+      <h2>Shopping Cart</h2>
+      
+      {items.value.map(item => (
+        <div key={item.id} className="cart-item">
+          {item.name} x {item.quantity} = ${(item.price * item.quantity).toFixed(2)}
+        </div>
+      ))}
+      
+      <div className="cart-summary">
+        <p>Items: {cartSummary.itemCount}</p>
+        <p>Subtotal: ${cartSummary.subtotal}</p>
+        <p>Tax: ${cartSummary.taxAmount}</p>
+        <p>Discount: -${cartSummary.discountAmount}</p>
+        <p><strong>Total: ${cartSummary.total}</strong></p>
+      </div>
+    </div>
+  );
+});
+```
+
+## useCallback
+
+Memoizes callback functions to prevent unnecessary re-renders of child components. This is especially useful when passing callbacks to child components.
+
+```javascript
+const memoizedCallback = lens.useCallback(callbackFunction, dependencies);
+```
+
+### Parameters
+
+- **callbackFunction**: The function to memoize
+- **dependencies**: An array of values that trigger callback recreation
+
+### Preventing unnecessary re-renders
+
+```javascript
+const TodoList = createComponent(({ lens }) => {
+  const todos = lens.useRefraction([
+    { id: 1, text: 'Learn Refract', completed: false },
+    { id: 2, text: 'Build an app', completed: false }
+  ]);
+  
+  // Without useCallback, these functions would be recreated on every render
+  const handleToggle = lens.useCallback((id) => {
+    todos.update(current => 
+      current.map(todo => 
+        todo.id === id ? { ...todo, completed: !todo.completed } : todo
+      )
+    );
+  }, [todos]); // Only recreate when todos reference changes
+  
+  const handleDelete = lens.useCallback((id) => {
+    todos.update(current => current.filter(todo => todo.id !== id));
+  }, [todos]);
+  
+  const handleEdit = lens.useCallback((id, newText) => {
+    todos.update(current =>
+      current.map(todo =>
+        todo.id === id ? { ...todo, text: newText } : todo
+      )
+    );
+  }, [todos]);
+  
+  return (
+    <div>
+      <h2>Todo List</h2>
+      {todos.value.map(todo => (
+        <TodoItem
+          key={todo.id}
+          todo={todo}
+          onToggle={handleToggle}
+          onDelete={handleDelete}
+          onEdit={handleEdit}
+        />
+      ))}
+    </div>
+  );
+});
+
+// Child component won't re-render unnecessarily thanks to memoized callbacks
+const TodoItem = createComponent(({ lens, todo, onToggle, onDelete, onEdit }) => {
+  const editing = lens.useRefraction(false);
+  const editText = lens.useRefraction(todo.text);
+  
+  const handleSaveEdit = () => {
+    onEdit(todo.id, editText.value);
+    editing.set(false);
+  };
+  
+  const handleCancelEdit = () => {
+    editText.set(todo.text);
+    editing.set(false);
+  };
+  
+  return (
+    <div className="todo-item">
+      <input
+        type="checkbox"
+        checked={todo.completed}
+        onChange={() => onToggle(todo.id)}
+      />
+      
+      {editing.value ? (
+        <div>
+          <input
+            value={editText.value}
+            onChange={(e) => editText.set(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSaveEdit();
+              if (e.key === 'Escape') handleCancelEdit();
+            }}
+          />
+          <button onClick={handleSaveEdit}>Save</button>
+          <button onClick={handleCancelEdit}>Cancel</button>
+        </div>
+      ) : (
+        <div>
+          <span 
+            className={todo.completed ? 'completed' : ''}
+            onDoubleClick={() => editing.set(true)}
+          >
+            {todo.text}
+          </span>
+          <button onClick={() => onDelete(todo.id)}>Delete</button>
+        </div>
+      )}
+    </div>
+  );
+});
+```
+
+### Event handlers with parameters
+
+```javascript
+const ButtonGroup = createComponent(({ lens, onButtonClick }) => {
+  const buttons = ['Save', 'Cancel', 'Delete'];
+  
+  // Create memoized handlers for each button
+  const createHandler = lens.useCallback((buttonName) => {
+    return () => onButtonClick(buttonName);
+  }, [onButtonClick]);
+  
+  return (
+    <div className="button-group">
+      {buttons.map(button => (
+        <button 
+          key={button}
+          onClick={createHandler(button)}
+          className={`btn btn-${button.toLowerCase()}`}
+        >
+          {button}
+        </button>
+      ))}
+    </div>
+  );
+});
+```
+
+## Lifecycle patterns
+
+### Component mounting and unmounting
+
+```javascript
+const LifecycleExample = createComponent(({ lens, userId }) => {
+  const mounted = lens.useRef(false);
+  const data = lens.useRefraction(null);
+  
+  // On mount
+  lens.useEffect(() => {
+    mounted.current = true;
+    console.log('Component mounted');
+    
+    // Cleanup on unmount
+    return () => {
+      mounted.current = false;
+      console.log('Component unmounted');
+    };
+  }, []);
+  
+  // Data fetching with mount check
+  lens.useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch(`/api/users/${userId}`);
+        const result = await response.json();
+        
+        // Only update state if component is still mounted
+        if (mounted.current) {
+          data.set(result);
+        }
+      } catch (error) {
+        if (mounted.current) {
+          console.error('Fetch error:', error);
+        }
+      }
+    };
+    
+    fetchData();
+  }, [userId]);
+  
+  return <div>{data.value?.name || 'Loading...'}</div>;
+});
+```
+
+### Combining lifecycle methods
+
+```javascript
+const ComplexComponent = createComponent(({ lens, config }) => {
+  const data = lens.useRefraction([]);
+  const loading = lens.useRefraction(false);
+  const error = lens.useRefraction(null);
+  const elementRef = lens.useRef();
+  
+  // Memoize expensive calculation
+  const processedData = lens.useMemo(() => {
+    return data.value
+      .filter(item => item.status === 'active')
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, config.maxItems || 10);
+  }, [data.value, config.maxItems]);
+  
+  // Memoize callback
+  const handleItemClick = lens.useCallback((item) => {
+    console.log('Item clicked:', item);
+    config.onItemClick?.(item);
+  }, [config.onItemClick]);
+  
+  // Data fetching effect
+  lens.useEffect(() => {
+    const fetchData = async () => {
+      loading.set(true);
+      error.set(null);
+      
+      try {
+        const response = await fetch(config.apiEndpoint);
+        const result = await response.json();
+        data.set(result);
+      } catch (err) {
+        error.set(err.message);
+      } finally {
+        loading.set(false);
+      }
+    };
+    
+    fetchData();
+  }, [config.apiEndpoint]);
+  
+  // Animation effect (runs once after render)
+  lens.useFlash(() => {
+    const element = elementRef.current;
+    if (element) {
+      element.style.opacity = '0';
+      element.style.transform = 'translateY(20px)';
+      element.style.transition = 'all 0.3s ease';
+      
+      requestAnimationFrame(() => {
+        element.style.opacity = '1';
+        element.style.transform = 'translateY(0)';
+      });
+    }
+  });
+  
+  if (loading.value) return <div>Loading...</div>;
+  if (error.value) return <div>Error: {error.value}</div>;
+  
+  return (
+    <div ref={elementRef}>
+      <h2>Data List ({processedData.length} items)</h2>
+      <ul>
+        {processedData.map(item => (
+          <li key={item.id} onClick={() => handleItemClick(item)}>
+            {item.title}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+});
+```
+
+## Best practices
+
+### Dependency arrays
+
+Always include all values from component scope that are used inside the effect:
+
+```javascript
+// ❌ Missing dependencies
+lens.useEffect(() => {
+  fetchUserData(userId, apiKey); // userId and apiKey should be in deps
+}, []); 
+
+// ✅ Complete dependencies
+lens.useEffect(() => {
+  fetchUserData(userId, apiKey);
+}, [userId, apiKey]);
+```
+
+### Cleanup functions
+
+Always clean up subscriptions, timers, and event listeners:
+
+```javascript
+// ✅ Good: Proper cleanup
+lens.useEffect(() => {
+  const subscription = eventEmitter.subscribe('event', handler);
+  const timer = setInterval(updateStats, 1000);
+  
+  return () => {
+    subscription.unsubscribe();
+    clearInterval(timer);
+  };
+}, []);
+```
+
+### Avoid infinite loops
+
+Be careful with object and array dependencies:
+
+```javascript
+// ❌ This will cause infinite renders
+const config = { endpoint: '/api/data', params: { limit: 10 } };
+lens.useEffect(() => {
+  fetchData(config); // config is recreated every render
+}, [config]);
+
+// ✅ Better: Use primitive values or useMemo
+const endpoint = '/api/data';
+const limit = 10;
+lens.useEffect(() => {
+  fetchData({ endpoint, params: { limit } });
+}, [endpoint, limit]);
+
+// ✅ Or memoize the config object
+const config = lens.useMemo(() => ({ 
+  endpoint: '/api/data', 
+  params: { limit: 10 } 
+}), []);
+
+lens.useEffect(() => {
+  fetchData(config);
+}, [config]);
+```
+
+### Performance optimization
+
+Use useMemo and useCallback wisely:
+
+```javascript
+// ✅ Good: Expensive calculation
+const expensiveValue = lens.useMemo(() => {
+  return largeDataSet.reduce((acc, item) => {
+    // Complex calculation
+    return acc + processItem(item);
+  }, 0);
+}, [largeDataSet]);
+
+// ❌ Don't memoize simple calculations
+const simpleValue = lens.useMemo(() => {
+  return a + b; // This is not expensive enough to memoize
+}, [a, b]);
+
+// ✅ Good: Callback passed to child components
+const handleClick = lens.useCallback((id) => {
+  doSomething(id);
+}, [doSomething]);
+
+// ❌ Don't memoize callbacks that aren't passed as props
+const localHandler = lens.useCallback(() => {
+  console.log('clicked'); // Only used locally, no need to memoize
+}, []);
+```
+
+## TypeScript support
+
+Type your lifecycle methods for better development experience:
+
+```typescript
+import { ComponentFunction, Lens } from 'refract';
+
+interface Props {
+  userId: string;
+  onUserLoad?: (user: User) => void;
+}
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+const UserComponent: ComponentFunction<Props> = ({ lens, userId, onUserLoad }) => {
+  const user = lens.useRefraction<User | null>(null);
+  const loading = lens.useRefraction<boolean>(false);
+  
+  // TypeScript knows the types of all variables
+  const fetchUser = lens.useCallback(async (id: string): Promise<void> => {
+    loading.set(true);
+    try {
+      const response = await fetch(`/api/users/${id}`);
+      const userData: User = await response.json();
+      user.set(userData);
+      onUserLoad?.(userData);
+    } catch (error) {
+      console.error('Failed to fetch user:', error);
+    } finally {
+      loading.set(false);
+    }
+  }, [onUserLoad]);
+  
+  lens.useEffect(() => {
+    fetchUser(userId);
+  }, [userId, fetchUser]);
+  
+  const userSummary = lens.useMemo((): string => {
+    return user.value ? `${user.value.name} (${user.value.email})` : 'No user';
+  }, [user.value]);
+  
+  return (
+    <div>
+      {loading.value ? <p>Loading...</p> : <p>{userSummary}</p>}
+    </div>
+  );
+};
+```
+
+## Debugging lifecycle methods
+
+### Effect debugging
+
+Add logging to understand when effects run:
+
+```javascript
+const DebugComponent = createComponent(({ lens, prop1, prop2 }) => {
+  lens.useEffect(() => {
+    console.log('Effect 1 ran:', { prop1, prop2 });
+    
+    return () => {
+      console.log('Effect 1 cleanup:', { prop1, prop2 });
+    };
+  }, [prop1, prop2]);
+  
+  lens.useEffect(() => {
+    console.log('Effect 2 ran - mount only');
+    
+    return () => {
+      console.log('Effect 2 cleanup - unmount only');
+    };
+  }, []); // Empty deps = mount/unmount only
+  
+  return <div>Check console for effect logs</div>;
+});
+```
+
+### Memoization debugging
+
+Check if your memoization is working:
+
+```javascript
+const MemoDebugComponent = createComponent(({ lens, data }) => {
+  const expensiveResult = lens.useMemo(() => {
+    console.log('Expensive calculation running...'); // Should only log when data changes
+    return data.map(item => item.value * 2).reduce((a, b) => a + b, 0);
+  }, [data]);
+  
+  const callback = lens.useCallback(() => {
+    console.log('Callback created'); // Should only log when dependencies change
+  }, []);
+  
+  return <div>Result: {expensiveResult}</div>;
+});
+```
+
+Understanding lifecycle methods is crucial for building efficient Refract applications. They give you precise control over when side effects run, help optimize performance, and ensure proper cleanup. Master these patterns and you'll be able to handle any complex UI scenario with confidence.

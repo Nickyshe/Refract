@@ -1,3 +1,501 @@
 ---
+title: "Compiler Optimization"
 sidebar_position: 2
+sidebar_label: "Compiler Optimization"
+slug: /compiler-optimization
 ---
+
+
+Refract's lightweight compiler transforms your code at build time to optimize performance, bundle size, and runtime behavior. The compiler performs static analysis to eliminate unused code, optimize reactivity patterns, and generate efficient JavaScript.
+
+## How the compiler works
+
+The Refract compiler operates in three phases:
+
+1. **Parse phase**: Analyzes JSX, component structure, and optic usage
+2. **Transform phase**: Applies optimizations and generates efficient code  
+3. **Bundle phase**: Eliminates dead code and optimizes imports
+
+The compiler integrates with popular build tools like Vite, Webpack, and esbuild through plugins.
+
+## Compiler configuration
+
+Configure the compiler through `refract.config.js`:
+
+```javascript
+export default {
+  compiler: {
+    // Enable/disable specific optimizations
+    optimizations: {
+      deadCodeElimination: true,
+      refractionInlining: true,
+      componentTreeShaking: true,
+      opticMemoization: true
+    },
+    
+    // Development settings
+    development: {
+      sourceMap: true,
+      hotReload: true,
+      debugInfo: true
+    },
+    
+    // Production settings
+    production: {
+      minify: true,
+      stripDebugInfo: true,
+      aggressiveOptimization: true
+    }
+  }
+};
+```
+
+## Build tool integration
+
+### Vite plugin
+
+```javascript
+// vite.config.js
+import { defineConfig } from 'vite';
+import refract from 'refract/vite';
+
+export default defineConfig({
+  plugins: [
+    refract({
+      // Compiler options
+      optimizations: {
+        refractionInlining: true
+      }
+    })
+  ]
+});
+```
+
+### Webpack plugin
+
+```javascript
+// webpack.config.js
+const RefractPlugin = require('refract/webpack');
+
+module.exports = {
+  plugins: [
+    new RefractPlugin({
+      optimizations: {
+        componentTreeShaking: true
+      }
+    })
+  ]
+};
+```
+
+### esbuild plugin
+
+```javascript
+// build.js
+import { build } from 'esbuild';
+import refract from 'refract/esbuild';
+
+await build({
+  entryPoints: ['src/main.js'],
+  plugins: [refract()],
+  bundle: true,
+  outdir: 'dist'
+});
+```
+
+## Optimization techniques
+
+### Dead code elimination
+
+The compiler removes unused components, optics, and refractions:
+
+```javascript
+// Before compilation
+import { ComponentA, ComponentB, ComponentC } from './components';
+
+const App = () => {
+  return <ComponentA />;  // Only ComponentA is used
+};
+
+// After compilation - ComponentB and ComponentC are removed
+import { ComponentA } from './components';
+
+const App = () => {
+  return <ComponentA />;
+};
+```
+
+### Refraction inlining
+
+Simple refractions are inlined for better performance:
+
+```javascript
+// Before compilation
+const SimpleComponent = createComponent(({ lens }) => {
+  const count = lens.useRefraction(0);
+  return <div>{count.value}</div>;
+});
+
+// After compilation - refraction logic inlined
+const SimpleComponent = createComponent(({ lens }) => {
+  const count$internal = createInlineRefraction(0);
+  return <div>{count$internal}</div>;
+});
+```
+
+### Component tree shaking
+
+Unused component methods and lifecycle hooks are removed:
+
+```javascript
+// Before compilation
+const Component = createComponent(({ lens }) => {
+  lens.useEffect(() => {
+    // This effect is never used
+    console.log('unused effect');
+  }, []);
+  
+  const unusedOptic = useCustomOptic();  // Never referenced
+  
+  return <div>Hello</div>;
+});
+
+// After compilation - unused code removed
+const Component = createComponent(({ lens }) => {
+  return <div>Hello</div>;
+});
+```
+
+### Optic memoization
+
+Frequently used optics are automatically memoized:
+
+```javascript
+// Before compilation
+const ExpensiveComponent = createComponent(() => {
+  const data = useExpensiveComputation(props.input);
+  return <div>{data}</div>;
+});
+
+// After compilation - automatic memoization added
+const ExpensiveComponent = createComponent(() => {
+  const data = useMemoizedOptic(
+    () => useExpensiveComputation(props.input),
+    [props.input]
+  );
+  return <div>{data}</div>;
+});
+```
+
+## Static analysis
+
+The compiler performs comprehensive static analysis to optimize your code:
+
+### Dependency tracking
+
+Automatically tracks dependencies between components and optics:
+
+```javascript
+// The compiler analyzes these relationships
+const useUserData = createOptic(() => {
+  const auth = useAuth();           // Dependency: useAuth
+  const profile = useProfile();     // Dependency: useProfile
+  return { auth, profile };
+});
+
+// And optimizes the dependency graph
+```
+
+### Bundle splitting recommendations
+
+The compiler suggests optimal bundle splitting:
+
+```bash
+✓ Analyzing component dependencies...
+✓ Found 3 potential split points:
+  - /src/components/admin/* (12KB)
+  - /src/optics/analytics/* (8KB)  
+  - /src/components/dashboard/* (15KB)
+```
+
+### Performance insights
+
+Get detailed performance analysis:
+
+```bash
+RefractCompiler: Performance Analysis
+┌─────────────────────┬──────────┬─────────────┐
+│ Component           │ Size     │ Render Cost │
+├─────────────────────┼──────────┼─────────────┤
+│ UserDashboard       │ 2.1KB    │ High        │
+│ ProductList         │ 1.8KB    │ Medium      │
+│ Navigation          │ 0.9KB    │ Low         │
+└─────────────────────┴──────────┴─────────────┘
+
+Recommendations:
+• Consider lazy loading UserDashboard
+• Optimize ProductList rendering
+```
+
+## Advanced optimizations
+
+### Automatic code splitting
+
+Enable automatic component code splitting:
+
+```javascript
+// refract.config.js
+export default {
+  compiler: {
+    codeSplitting: {
+      enabled: true,
+      threshold: '10KB',        // Split components larger than 10KB
+      strategy: 'route-based'   // Split by route boundaries
+    }
+  }
+};
+```
+
+### Prefetching strategies
+
+Configure intelligent prefetching:
+
+```javascript
+export default {
+  compiler: {
+    prefetch: {
+      components: 'viewport',    // Prefetch when near viewport
+      optics: 'interaction',     // Prefetch on user interaction
+      data: 'idle'              // Prefetch during idle time
+    }
+  }
+};
+```
+
+### Bundle optimization
+
+Fine-tune bundle generation:
+
+```javascript
+export default {
+  compiler: {
+    bundling: {
+      splitChunks: {
+        vendor: true,           // Separate vendor bundle
+        common: '2KB',          // Extract common code > 2KB
+        async: true            // Async chunk loading
+      },
+      compression: {
+        brotli: true,
+        gzip: true
+      }
+    }
+  }
+};
+```
+
+## Development mode features
+
+### Hot module replacement
+
+The compiler provides sophisticated HMR for Refract components:
+
+```javascript
+// Changes to this component trigger smart updates
+const MyComponent = createComponent(({ lens }) => {
+  const state = lens.useRefraction({ count: 0 });
+  
+  // State is preserved during HMR
+  return (
+    <button onClick={() => state.set({...state.value, count: state.value.count + 1})}>
+      Count: {state.value.count}
+    </button>
+  );
+});
+```
+
+### Debug information
+
+Enhanced debugging in development:
+
+```javascript
+// Development builds include detailed debug info
+const DebugComponent = createComponent(({ lens }) => {
+  // Compiler adds debug metadata
+  const state = lens.useRefraction(0, { 
+    __debug: { name: 'DebugComponent.state', location: 'src/Debug.js:5' }
+  });
+  
+  return <div>{state.value}</div>;
+});
+```
+
+### Performance profiling
+
+Built-in performance profiling:
+
+```javascript
+// Enable profiling in development
+export default {
+  compiler: {
+    development: {
+      profiling: {
+        enabled: true,
+        trackRenders: true,
+        trackRefractions: true,
+        reportThreshold: 16 // Report slow renders (>16ms)
+      }
+    }
+  }
+};
+```
+
+## Production optimizations
+
+### Minification strategies
+
+Advanced minification beyond basic JavaScript minification:
+
+```javascript
+export default {
+  compiler: {
+    production: {
+      minification: {
+        removeDebugCalls: true,     // Remove console.log, debugger
+        inlineConstants: true,      // Inline constant values
+        shortenIdentifiers: true,   // Shorten variable names
+        removeUnusedImports: true   // Remove unused imports
+      }
+    }
+  }
+};
+```
+
+### Runtime optimizations
+
+Optimize runtime performance:
+
+```javascript
+export default {
+  compiler: {
+    production: {
+      runtime: {
+        batchUpdates: true,        // Batch refraction updates
+        lazyComponents: true,      // Lazy load by default
+        precomputeSelectors: true, // Pre-compute selectors
+        optimizeLoops: true        // Optimize render loops
+      }
+    }
+  }
+};
+```
+
+### Build analysis
+
+Analyze your production builds:
+
+```bash
+npx refract analyze
+
+Bundle Analysis:
+┌─────────────────┬─────────┬────────┬─────────────┐
+│ Chunk           │ Size    │ Gzipped│ Dependencies│
+├─────────────────┼─────────┼────────┼─────────────┤
+│ main.js         │ 45.2KB  │ 12.1KB │ 12 modules  │
+│ vendor.js       │ 156.3KB │ 42.8KB │ 8 modules   │
+│ async-route.js  │ 23.1KB  │ 7.2KB  │ 6 modules   │
+└─────────────────┴─────────┴────────┴─────────────┘
+
+Largest Components:
+• Dashboard.jsx: 8.3KB (consider code splitting)
+• DataGrid.jsx: 6.1KB (optimizable)
+
+Optimization Opportunities:
+• 3 duplicate dependencies found
+• 2 unused optics detected
+```
+
+## Compiler plugins
+
+Create custom compiler plugins:
+
+```javascript
+// plugins/custom-optimization.js
+export default function customOptimization() {
+  return {
+    name: 'custom-optimization',
+    transform(code, id) {
+      if (id.includes('.refract.js')) {
+        // Custom transformation logic
+        return {
+          code: transformedCode,
+          map: sourceMap
+        };
+      }
+    }
+  };
+}
+
+// refract.config.js
+import customOptimization from './plugins/custom-optimization.js';
+
+export default {
+  compiler: {
+    plugins: [
+      customOptimization()
+    ]
+  }
+};
+```
+
+## Troubleshooting
+
+### Common optimization issues
+
+**Bundle size larger than expected**
+```bash
+# Analyze bundle composition
+npx refract analyze --verbose
+
+# Check for duplicate dependencies
+npx refract dedupe
+```
+
+**Slow build times**
+```javascript
+// Reduce optimization levels for development
+export default {
+  compiler: {
+    development: {
+      optimizations: {
+        aggressiveOptimization: false,
+        componentTreeShaking: false  // Skip in development
+      }
+    }
+  }
+};
+```
+
+**Runtime errors after optimization**
+```bash
+# Enable source maps for debugging
+npx refract build --source-map
+
+# Disable specific optimizations
+npx refract build --no-refraction-inlining
+```
+
+### Debug compiler behavior
+
+```bash
+# Verbose compilation output
+npx refract build --verbose
+
+# Save intermediate compilation steps  
+npx refract build --debug-output=./debug
+
+# Profile compilation performance
+npx refract build --profile
+```
+
+The Refract compiler provides powerful optimizations that significantly improve your application's performance and developer experience. By understanding and configuring these optimizations, you can build faster, smaller, and more maintainable applications.

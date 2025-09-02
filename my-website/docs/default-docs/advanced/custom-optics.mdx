@@ -1,3 +1,402 @@
 ---
+title: "Custom Optics"
 sidebar_position: 1
+sidebar_label: "Custom Optics"
+slug: /custom-optics
 ---
+
+
+Custom optics let you create reusable, composable logic patterns that work seamlessly with Refract's reactivity system. Unlike traditional React hooks, optics provide dependency-aware caching, animation-aware transitions, and automatic cleanup—making them ideal for complex stateful logic.
+
+## What are custom optics?
+
+Custom optics are functions that encapsulate reactive state, side effects, and computed values into reusable units. They follow the same principles as React hooks but with enhanced capabilities:
+
+- **Dependency-aware caching**: Automatically memoize expensive computations
+- **Animation-aware transitions**: Integrate smoothly with Refract's animation system  
+- **Automatic cleanup**: Handle resource disposal without manual intervention
+- **Composability**: Combine multiple optics seamlessly
+
+## Creating custom optics
+
+Use the `createOptic()` function to build custom optics:
+
+```javascript
+import { createOptic, useRefraction } from "refract";
+
+const useCounter = createOptic((initialValue = 0) => {
+  const count = useRefraction(initialValue);
+  
+  const increment = () => count.set(count.value + 1);
+  const decrement = () => count.set(count.value - 1);
+  const reset = () => count.set(initialValue);
+  
+  return {
+    count: count.value,
+    increment,
+    decrement,
+    reset
+  };
+});
+```
+
+### Advanced optics with side effects
+
+Handle API calls, subscriptions, and other side effects:
+
+```javascript
+import { createOptic, useRefraction, useEffect } from "refract";
+
+const useApiData = createOptic((url) => {
+  const data = useRefraction(null);
+  const loading = useRefraction(false);
+  const error = useRefraction(null);
+  
+  const fetchData = async () => {
+    loading.set(true);
+    error.set(null);
+    
+    try {
+      const response = await fetch(url);
+      const result = await response.json();
+      data.set(result);
+    } catch (err) {
+      error.set(err.message);
+    } finally {
+      loading.set(false);
+    }
+  };
+  
+  useEffect(() => {
+    fetchData();
+  }, [url]);
+  
+  return {
+    data: data.value,
+    loading: loading.value,
+    error: error.value,
+    refetch: fetchData
+  };
+});
+```
+
+## Optic composition patterns
+
+### Combining multiple optics
+
+Create higher-order optics by combining existing ones:
+
+```javascript
+const useAuthenticatedApi = createOptic((url) => {
+  const auth = useAuth();
+  const api = useApiData(auth.token ? url : null);
+  
+  if (!auth.isAuthenticated) {
+    return {
+      data: null,
+      loading: false,
+      error: "Authentication required"
+    };
+  }
+  
+  return api;
+});
+```
+
+### Conditional optics
+
+Use conditional logic to create adaptive behavior:
+
+```javascript
+const useResponsiveLayout = createOptic(() => {
+  const windowSize = useWindowSize();
+  const isMobile = windowSize.width < 768;
+  
+  const mobileLayout = useOptic(() => ({
+    columns: 1,
+    spacing: "sm"
+  }), [], { enabled: isMobile });
+  
+  const desktopLayout = useOptic(() => ({
+    columns: 3,
+    spacing: "lg"
+  }), [], { enabled: !isMobile });
+  
+  return isMobile ? mobileLayout : desktopLayout;
+});
+```
+
+## Performance optimization
+
+### Dependency tracking
+
+Optics automatically track dependencies, but you can optimize further:
+
+```javascript
+const useExpensiveComputation = createOptic((data, options) => {
+  const result = useRefraction(null);
+  
+  // Only recompute when data changes, not options
+  useEffect(() => {
+    const computed = expensiveFunction(data);
+    result.set(computed);
+  }, [data]); // options intentionally omitted
+  
+  return result.value;
+});
+```
+
+### Selective reactivity
+
+Control which changes trigger updates:
+
+```javascript
+const useThrottledSearch = createOptic((query, delay = 300) => {
+  const debouncedQuery = useRefraction(query);
+  const results = useRefraction([]);
+  
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      debouncedQuery.set(query);
+    }, delay);
+    
+    return () => clearTimeout(timeout);
+  }, [query, delay]);
+  
+  useEffect(() => {
+    if (debouncedQuery.value) {
+      searchApi(debouncedQuery.value).then(results.set);
+    }
+  }, [debouncedQuery.value]);
+  
+  return {
+    results: results.value,
+    isSearching: query !== debouncedQuery.value
+  };
+});
+```
+
+## Animation integration
+
+Optics work seamlessly with Refract's animation system:
+
+```javascript
+import { createOptic, useRefraction, useFlash } from "refract";
+
+const useAnimatedCounter = createOptic((initialValue = 0, duration = 300) => {
+  const target = useRefraction(initialValue);
+  const current = useRefraction(initialValue);
+  
+  useFlash(() => {
+    // Animate to target value
+    animate(current.value, target.value, {
+      duration,
+      onUpdate: (value) => current.set(value)
+    });
+  }, [target.value]);
+  
+  return {
+    value: current.value,
+    setValue: target.set,
+    isAnimating: current.value !== target.value
+  };
+});
+```
+
+## Error handling
+
+Implement robust error boundaries in optics:
+
+```javascript
+const useSafeAsyncOperation = createOptic((operation) => {
+  const result = useRefraction(null);
+  const error = useRefraction(null);
+  const loading = useRefraction(false);
+  
+  const execute = async (...args) => {
+    loading.set(true);
+    error.set(null);
+    
+    try {
+      const data = await operation(...args);
+      result.set(data);
+      return data;
+    } catch (err) {
+      error.set(err);
+      console.error("Optic operation failed:", err);
+      throw err;
+    } finally {
+      loading.set(false);
+    }
+  };
+  
+  return {
+    result: result.value,
+    error: error.value,
+    loading: loading.value,
+    execute
+  };
+});
+```
+
+## Testing custom optics
+
+Test optics in isolation using Refract's testing utilities:
+
+```javascript
+import { renderOptic } from "refract/testing";
+
+describe("useCounter", () => {
+  test("increments count", () => {
+    const { result, rerender } = renderOptic(() => useCounter(5));
+    
+    expect(result.current.count).toBe(5);
+    
+    result.current.increment();
+    rerender();
+    
+    expect(result.current.count).toBe(6);
+  });
+  
+  test("resets to initial value", () => {
+    const { result, rerender } = renderOptic(() => useCounter(10));
+    
+    result.current.increment();
+    result.current.reset();
+    rerender();
+    
+    expect(result.current.count).toBe(10);
+  });
+});
+```
+
+## Best practices
+
+### Naming conventions
+
+- Prefix custom optics with `use`
+- Use descriptive names that indicate purpose
+- Group related optics in modules
+
+```javascript
+// Good
+const useUserProfile = createOptic(...);
+const useShoppingCart = createOptic(...);
+
+// Avoid
+const optic1 = createOptic(...);
+const getData = createOptic(...);
+```
+
+### Resource management
+
+Always clean up resources to prevent memory leaks:
+
+```javascript
+const useWebSocket = createOptic((url) => {
+  const socket = useRefraction(null);
+  const messages = useRefraction([]);
+  
+  useEffect(() => {
+    const ws = new WebSocket(url);
+    socket.set(ws);
+    
+    ws.onmessage = (event) => {
+      messages.set(prev => [...prev, event.data]);
+    };
+    
+    // Cleanup function
+    return () => {
+      ws.close();
+      socket.set(null);
+    };
+  }, [url]);
+  
+  return {
+    socket: socket.value,
+    messages: messages.value
+  };
+});
+```
+
+### Granular reactivity
+
+Keep optics focused on specific concerns:
+
+```javascript
+// Good - focused responsibility
+const useCurrentUser = createOptic(...);
+const useUserPreferences = createOptic(...);
+const useUserNotifications = createOptic(...);
+
+// Avoid - too broad
+const useEverythingAboutUser = createOptic(...);
+```
+
+## Common patterns
+
+### State machines
+
+Implement finite state machines with optics:
+
+```javascript
+const useStateMachine = createOptic((initialState, transitions) => {
+  const state = useRefraction(initialState);
+  
+  const transition = (event) => {
+    const currentState = state.value;
+    const nextState = transitions[currentState]?.[event];
+    
+    if (nextState) {
+      state.set(nextState);
+    } else {
+      console.warn(`Invalid transition: ${currentState} -> ${event}`);
+    }
+  };
+  
+  return {
+    state: state.value,
+    transition,
+    can: (event) => Boolean(transitions[state.value]?.[event])
+  };
+});
+```
+
+### Undo/redo functionality
+
+```javascript
+const useUndoRedo = createOptic((initialValue) => {
+  const history = useRefraction([initialValue]);
+  const currentIndex = useRefraction(0);
+  
+  const setValue = (value) => {
+    const newHistory = history.value.slice(0, currentIndex.value + 1);
+    newHistory.push(value);
+    history.set(newHistory);
+    currentIndex.set(newHistory.length - 1);
+  };
+  
+  const undo = () => {
+    if (currentIndex.value > 0) {
+      currentIndex.set(currentIndex.value - 1);
+    }
+  };
+  
+  const redo = () => {
+    if (currentIndex.value < history.value.length - 1) {
+      currentIndex.set(currentIndex.value + 1);
+    }
+  };
+  
+  return {
+    value: history.value[currentIndex.value],
+    setValue,
+    undo,
+    redo,
+    canUndo: currentIndex.value > 0,
+    canRedo: currentIndex.value < history.value.length - 1
+  };
+});
+```
+
+Custom optics are the foundation of reusable logic in Refract. By following these patterns and best practices, you can create maintainable, testable, and performant applications.

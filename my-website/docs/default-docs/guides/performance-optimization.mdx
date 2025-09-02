@@ -1,3 +1,521 @@
 ---
+title: "Performance Optimization"
 sidebar_position: 2
+sidebar_label: "Performance Optimization"
+slug: /performance-optimization
 ---
+
+
+
+Refract is designed for performance by default, but understanding how to optimize your applications will help you build faster, more responsive user interfaces. This guide covers performance best practices and optimization techniques.
+
+## How Refract handles performance
+
+Refract uses several techniques to minimize unnecessary work:
+
+- **Reactive updates**: Only components that use changed refractions re-render
+- **Automatic batching**: Multiple state changes in the same event loop are batched
+- **Selective subscriptions**: Components only subscribe to the specific state they use
+- **Compile-time optimization**: The Refract compiler optimizes component code during build
+
+## Measuring performance
+
+Before optimizing, measure your application's performance to identify bottlenecks.
+
+### Using browser dev tools
+
+1. Open Chrome DevTools
+2. Go to the Performance tab
+3. Record a profile while interacting with your app
+4. Look for long frames (over 16ms) and expensive operations
+
+### Refract performance profiler
+
+Enable Refract's built-in profiler in development:
+
+```javascript
+// refract.config.js
+export default {
+  development: {
+    enableProfiler: true,
+    logSlowComponents: true,
+    slowComponentThreshold: 5 // milliseconds
+  }
+};
+```
+
+The profiler logs components that take longer than the threshold to render:
+
+```
+[Refract Profiler] TodoList rendered in 8.2ms (slow)
+[Refract Profiler] UserProfile rendered in 2.1ms
+```
+
+## Optimizing component renders
+
+### Minimize refraction dependencies
+
+Components automatically re-render when any refraction they use changes. Reduce unnecessary re-renders by only accessing the state you need:
+
+```javascript
+// ❌ Component re-renders when any user property changes
+const UserCard = createComponent(() => {
+  return (
+    <div>
+      <h3>{user.value.name}</h3>
+      {/* Only using name, but subscribed to entire user object */}
+    </div>
+  );
+});
+
+// ✅ Create focused refractions for specific properties
+const userName = derived(() => user.value?.name);
+
+const UserCard = createComponent(() => {
+  return (
+    <div>
+      <h3>{userName.value}</h3>
+    </div>
+  );
+});
+```
+
+### Use memo for expensive computations
+
+Memoize expensive calculations that don't need to run on every render:
+
+```javascript
+import { createComponent, memo } from "refract";
+
+const ExpensiveList = createComponent(({ lens }) => {
+  const items = lens.useRefraction([]);
+  const filter = lens.useRefraction("");
+  
+  // ❌ Expensive computation runs on every render
+  const processedItems = items.value
+    .filter(item => item.name.includes(filter.value))
+    .map(item => expensiveTransform(item))
+    .sort((a, b) => a.priority - b.priority);
+
+  // ✅ Memoized computation only runs when dependencies change
+  const processedItems = memo(() => 
+    items.value
+      .filter(item => item.name.includes(filter.value))
+      .map(item => expensiveTransform(item))
+      .sort((a, b) => a.priority - b.priority),
+    [items.value, filter.value]
+  );
+
+  return (
+    <ul>
+      {processedItems.map(item => (
+        <li key={item.id}>{item.name}</li>
+      ))}
+    </ul>
+  );
+});
+```
+
+### Optimize list rendering
+
+For large lists, use virtualization and efficient key strategies:
+
+```javascript
+import { createComponent, VirtualList } from "refract";
+
+const TodoList = createComponent(({ lens }) => {
+  const todos = lens.useRefraction([]);
+  
+  // ✅ Virtualized list for large datasets
+  return (
+    <VirtualList
+      items={todos.value}
+      height={400}
+      itemHeight={50}
+      renderItem={({ item, index }) => (
+        <TodoItem key={item.id} todo={item} />
+      )}
+    />
+  );
+});
+
+// ✅ Stable keys for list items
+const TodoItem = createComponent(({ todo, lens }) => {
+  const isEditing = lens.useRefraction(false);
+  
+  return (
+    <div>
+      {isEditing.value ? (
+        <input defaultValue={todo.text} />
+      ) : (
+        <span>{todo.text}</span>
+      )}
+      <button onClick={() => isEditing.update(current => !current)}>
+        Edit
+      </button>
+    </div>
+  );
+});
+```
+
+### Debounce expensive operations
+
+Debounce operations that are triggered frequently:
+
+```javascript
+import { createComponent, debounce } from "refract";
+
+const SearchBox = createComponent(({ lens, onSearch }) => {
+  const query = lens.useRefraction("");
+  const results = lens.useRefraction([]);
+  const loading = lens.useRefraction(false);
+  
+  // ✅ Debounced search prevents excessive API calls
+  const debouncedSearch = debounce(async (searchQuery) => {
+    if (!searchQuery.trim()) return;
+    
+    loading.set(true);
+    try {
+      const searchResults = await searchAPI(searchQuery);
+      results.set(searchResults);
+    } finally {
+      loading.set(false);
+    }
+  }, 300);
+  
+  lens.useEffect(() => {
+    debouncedSearch(query.value);
+  }, [query.value]);
+  
+  return (
+    <div>
+      <input 
+        value={query.value}
+        onChange={(e) => query.set(e.target.value)}
+        placeholder="Search..."
+      />
+      {loading.value && <div>Searching...</div>}
+      <SearchResults results={results.value} />
+    </div>
+  );
+});
+```
+
+## Optimizing state updates
+
+### Batch state changes
+
+Use `batch()` to group related state updates and prevent intermediate re-renders:
+
+```javascript
+import { batch } from "refract";
+
+const UserProfile = createComponent(({ lens }) => {
+  const firstName = lens.useRefraction("");
+  const lastName = lens.useRefraction("");
+  const email = lens.useRefraction("");
+  const loading = lens.useRefraction(false);
+
+  const loadUser = async (userId) => {
+    loading.set(true);
+    
+    try {
+      const user = await fetchUser(userId);
+      
+      // ✅ Batch updates prevent multiple re-renders
+      batch(() => {
+        firstName.set(user.firstName);
+        lastName.set(user.lastName);
+        email.set(user.email);
+        loading.set(false);
+      });
+      // Component re-renders only once after all updates
+      
+    } catch (error) {
+      loading.set(false);
+    }
+  };
+
+  return (
+    <div>
+      {loading.value ? (
+        <div>Loading...</div>
+      ) : (
+        <form>
+          <input value={firstName.value} onChange={(e) => firstName.set(e.target.value)} />
+          <input value={lastName.value} onChange={(e) => lastName.set(e.target.value)} />
+          <input value={email.value} onChange={(e) => email.set(e.target.value)} />
+        </form>
+      )}
+    </div>
+  );
+});
+```
+
+### Use shallow comparison for objects
+
+For object state, use shallow comparison to prevent unnecessary updates:
+
+```javascript
+import { useRefraction, shallow } from "refract";
+
+const settings = useRefraction({
+  theme: "light",
+  notifications: true,
+  language: "en"
+}, {
+  compare: shallow // Only re-render if object properties change
+});
+
+// ✅ This won't trigger a re-render (same values)
+settings.update(current => ({
+  theme: "light",
+  notifications: true,
+  language: "en"
+}));
+
+// ✅ This will trigger a re-render (theme changed)
+settings.update(current => ({
+  ...current,
+  theme: "dark"
+}));
+```
+
+### Optimize derived state
+
+Make derived refractions efficient by using stable dependencies:
+
+```javascript
+const todos = useRefraction([]);
+const filter = useRefraction("all");
+
+// ❌ Creates new array on every access
+const visibleTodos = derived(() => {
+  const items = todos.value;
+  const currentFilter = filter.value;
+  
+  return items.filter(todo => {
+    if (currentFilter === "completed") return todo.completed;
+    if (currentFilter === "pending") return !todo.completed;
+    return true;
+  });
+});
+
+// ✅ More efficient with explicit dependencies
+const visibleTodos = derived(() => {
+  const items = todos.value;
+  const currentFilter = filter.value;
+  
+  if (currentFilter === "all") return items;
+  
+  return items.filter(todo => 
+    currentFilter === "completed" ? todo.completed : !todo.completed
+  );
+}, [todos, filter]); // Explicit dependencies help optimization
+```
+
+## Memory management
+
+### Clean up subscriptions
+
+Refract automatically cleans up component subscriptions, but manual subscriptions need cleanup:
+
+```javascript
+const GlobalNotifications = createComponent(({ lens }) => {
+  const notifications = lens.useRefraction([]);
+  
+  lens.useEffect(() => {
+    // Manual subscription to external event source
+    const unsubscribe = eventBus.subscribe('notification', (notification) => {
+      notifications.update(current => [...current, notification]);
+    });
+    
+    // ✅ Clean up subscription
+    return unsubscribe;
+  }, []);
+  
+  return (
+    <div>
+      {notifications.value.map(notification => (
+        <div key={notification.id}>{notification.message}</div>
+      ))}
+    </div>
+  );
+});
+```
+
+### Avoid memory leaks in derived state
+
+Be careful with closures in derived refractions:
+
+```javascript
+// ❌ Potential memory leak - captures entire component scope
+const UserList = createComponent(({ lens }) => {
+  const users = lens.useRefraction([]);
+  const heavyObject = { /* large data */ };
+  
+  const userCount = derived(() => {
+    console.log(heavyObject); // Captures heavyObject in closure
+    return users.value.length;
+  });
+
+  // ✅ Only capture what you need
+  const userCount = derived(() => users.value.length);
+});
+```
+
+## Bundle optimization
+
+### Code splitting
+
+Split your application code to reduce initial bundle size:
+
+```javascript
+// ✅ Lazy load heavy components
+import { lazy } from "refract";
+
+const HeavyChart = lazy(() => import("./HeavyChart"));
+const AdminPanel = lazy(() => import("./AdminPanel"));
+
+const App = createComponent(() => {
+  const route = useRefraction("/dashboard");
+  
+  return (
+    <div>
+      <Navigation />
+      {route.value === "/admin" && <AdminPanel />}
+      {route.value === "/charts" && <HeavyChart />}
+    </div>
+  );
+});
+```
+
+### Tree shaking
+
+Import only what you need from Refract:
+
+```javascript
+// ❌ Imports entire library
+import * as Refract from "refract";
+
+// ✅ Import specific functions
+import { createComponent, useRefraction, derived } from "refract";
+```
+
+### Production builds
+
+Configure your build tool for production optimization:
+
+```javascript
+// refract.config.js
+export default {
+  production: {
+    minify: true,
+    removeDebugging: true,
+    optimizeRefractions: true,
+    bundleAnalysis: true
+  }
+};
+```
+
+## Performance monitoring
+
+### Runtime monitoring
+
+Monitor performance in production:
+
+```javascript
+// analytics/performance.js
+export function trackPerformance() {
+  // Measure component render times
+  const observer = new PerformanceObserver((list) => {
+    for (const entry of list.getEntries()) {
+      if (entry.name.startsWith('refract-component')) {
+        analytics.track('component_render_time', {
+          component: entry.name,
+          duration: entry.duration
+        });
+      }
+    }
+  });
+  
+  observer.observe({ entryTypes: ['measure'] });
+}
+```
+
+### Performance budgets
+
+Set performance budgets for your application:
+
+```javascript
+// refract.config.js
+export default {
+  performance: {
+    budgets: {
+      maxBundleSize: "250kb",
+      maxComponentRenderTime: 16,
+      maxStateUpdateTime: 1
+    },
+    warnings: {
+      slowComponents: true,
+      largeStateObjects: true,
+      inefficientDerivations: true
+    }
+  }
+};
+```
+
+## Common performance pitfalls
+
+### Creating refractions in render
+
+Don't create refractions inside component render functions:
+
+```javascript
+// ❌ Creates new refraction on every render
+const BadComponent = createComponent(() => {
+  const localState = useRefraction(0); // Creates new refraction each time
+  
+  return <div>{localState.value}</div>;
+});
+
+// ✅ Create refractions in component scope
+const GoodComponent = createComponent(({ lens }) => {
+  const localState = lens.useRefraction(0); // Stable refraction
+  
+  return <div>{localState.value}</div>;
+});
+```
+
+### Inline functions as dependencies
+
+Avoid inline functions in effect dependencies:
+
+```javascript
+const SearchComponent = createComponent(({ lens, onSearch }) => {
+  const query = lens.useRefraction("");
+  
+  // ❌ New function created on every render
+  lens.useEffect(() => {
+    const handler = (e) => onSearch(e.target.value);
+    inputRef.current?.addEventListener('change', handler);
+    return () => inputRef.current?.removeEventListener('change', handler);
+  }, [(e) => onSearch(e.target.value)]); // New function each time
+  
+  // ✅ Stable function reference
+  const handleSearch = lens.useCallback((e) => {
+    onSearch(e.target.value);
+  }, [onSearch]);
+  
+  lens.useEffect(() => {
+    inputRef.current?.addEventListener('change', handleSearch);
+    return () => inputRef.current?.removeEventListener('change', handleSearch);
+  }, [handleSearch]); // Stable dependency
+});
+```
+
+## Next steps
+
+- Learn about [advanced patterns] for complex applications
+- Explore [testing strategies]for performance testing
+- See [deployment guide]for production optimization

@@ -5,6 +5,9 @@
 // See: https://docusaurus.io/docs/api/docusaurus-config
 
 import { themes as prismThemes } from "prism-react-renderer";
+//import docsearch from '@docsearch/js';
+//import '@docsearch/css';
+
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -27,8 +30,8 @@ const config = {
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: "facebook", // Usually your GitHub org/user name.
-  projectName: "docusaurus", // Usually your repo name.
+  organizationName: "Judith Etugbo", // Usually your GitHub org/user name.
+  projectName: "Refract", // Usually your repo name.
 
   onBrokenLinks: "warn",
   onBrokenMarkdownLinks: "warn",
@@ -40,6 +43,8 @@ const config = {
     defaultLocale: "en",
     locales: ["en"],
   },
+
+
 
   presets: [
     [
@@ -59,21 +64,7 @@ docs: {
 pages: {
   path: 'src/pages',
   routeBasePath: '/',
-}, // Change from "pages: false" to this
-
-
-        // docs: {
-        //   routeBasePath: "/",
-        //   sidebarPath: "./sidebars.js",
-        //   // Please change this to your repo.
-        //   // Remove this to remove the "edit this page" links.
-        //   showLastUpdateTime: true,
-        //   showLastUpdateAuthor: true,
-        //   editUrl:
-        //     "https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/",
-        // },
-        // pages: false,
-
+}, 
         theme: {
           customCss: "./src/css/custom.css",
         },
@@ -84,6 +75,27 @@ pages: {
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
+       
+      algolia: {
+      // The application ID provided by Algolia
+      appId: '2657AGORS0',
+
+      // Public API key: it is safe to commit it
+      apiKey: 'fb30561ec2859b7a2142938470f89ae4',
+
+      indexName: 'refractcapstone_project_pages',
+
+      // Optional: see doc section below
+      contextualSearch: true,
+      },
+
+      liveCodeBlock: {
+      /**
+       * The position of the live playground, above or under the editor
+       * Possible values: "top" | "bottom"
+       */
+      playgroundPosition: 'bottom',
+    },
       // Replace with your project's social card
       image: "img/docusaurus-social-card.jpg",
       navbar: {
@@ -121,7 +133,7 @@ pages: {
           },
 
           {
-            href: "https://github.com/facebook/docusaurus",
+            href: "https://github.com/Nickyshe",
             position: "right",
             html: `
     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -142,24 +154,40 @@ pages: {
             "aria-label": "LinkedIn profile",
           },
 
-          // {
-          //   href: 'https://www.linkedin.com/in/etugbo-judith-984545236',
-          //   position: 'right',
-          //   label: 'Linkdeln'
+         { 
+        type: 'search',
+        position: 'right',
+      },
 
-          // },
         ],
       },
+
       footer: {
         style: "dark",
         links: [
           {
             title: "Docs",
             items: [
-              // {
-              //   label: 'Getting Started',
-              //   to: '/docs/getting-started/intro',
-              // },
+              {
+                label: 'Installation',
+                to: '/docs/installation',
+              },
+
+                {
+                label: 'Lenses',
+                to: '/docs/lenses',
+              },
+
+
+              {
+                label: 'State Management',
+                to: '/docs/state-management',
+              },
+
+              {
+                label: 'Examples',
+                to: '/docs/hello-world',
+              },
             ],
           },
           {
@@ -175,26 +203,27 @@ pages: {
               },
               {
                 label: "X",
-                href: "https://x.com/docusaurus",
+                href: "",
               },
             ],
           },
           {
             title: "More",
             items: [
-              // {
-              //   label: 'Blog',
-              //   to: '/blog',
-              // },
+            
               {
                 label: "GitHub",
-                href: "https://github.com/facebook/docusaurus",
+                href: "https://github.com/Nickyshe",
               },
             ],
           },
         ],
         copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+
       },
+
+
+
       prism: {
         theme: prismThemes.github,
         darkTheme: prismThemes.dracula,

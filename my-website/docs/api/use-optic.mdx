@@ -1,0 +1,226 @@
+---
+title: "useOptic"
+sidebar_position: 3
+sidebar_label: "useOptic"
+slug: /use-optic
+---
+
+# useOptic
+
+Creates reusable logic that can be shared between components. Think of optics as custom hooks with built-in optimization—they let you extract complex stateful logic and use it across your application.
+
+## Reference
+
+```javascript
+function useOptic(opticFunction, dependencies) {
+  // Optic logic here
+}
+```
+
+### Parameters
+
+- **opticFunction**: A function containing your reusable logic
+- **dependencies**: An array of values that cause the optic to recalculate when they change
+
+### Returns
+
+Whatever your optic function returns—typically an object with state values and functions.
+
+## Usage
+
+### Basic optic
+
+Here's a simple optic that manages a toggle state:
+
+```javascript
+function useToggle(initialValue = false) {
+  const value = lens.useRefraction(initialValue);
+  
+  const toggle = () => value.set(!value.value);
+  const setTrue = () => value.set(true);
+  const setFalse = () => value.set(false);
+  
+  return { 
+    value: value.value, 
+    toggle, 
+    setTrue, 
+    setFalse 
+  };
+}
+
+// Use it in components
+const DropdownMenu = createComponent(({ lens, children }) => {
+  const { value: isOpen, toggle, setFalse } = useToggle();
+  
+  return (
+    <div>
+      <button onClick={toggle}>
+        {isOpen ? 'Close' : 'Open'} Menu
+      </button>
+      {isOpen && (
+        <div className="menu" onClick={setFalse}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+});
+```
+
+### Optic with side effects
+
+Optics can include side effects like API calls or event listeners:
+
+```javascript
+function useApi(endpoint) {
+  const data = lens.useRefraction(null);
+  const loading = lens.useRefraction(false);
+  const error = lens.useRefraction(null);
+  
+  const fetchData = async () => {
+    loading.set(true);
+    error.set(null);
+    
+    try {
+      const response = await fetch(endpoint);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = await response.json();
+      data.set(result);
+    } catch (err) {
+      error.set(err.message);
+    } finally {
+      loading.set(false);
+    }
+  };
+  
+  // Auto-fetch when endpoint changes
+  lens.useEffect(() => {
+    fetchData();
+  }, [endpoint]);
+  
+  return {
+    data: data.value,
+    loading: loading.value,
+    error: error.value,
+    refetch: fetchData
+  };
+}
+
+// Use it in multiple components
+const UserProfile = createComponent(({ lens, userId }) => {
+  const { data: user, loading, error, refetch } = useApi(`/api/users/${userId}`);
+  
+  if (loading) return <div>Loading user...</div>;
+  if (error) return <div>Error: {error}</div>;
+  if (!user) return <div>User not found</div>;
+  
+  return (
+    <div>
+      <h2>{user.name}</h2>
+      <p>{user.email}</p>
+      <button onClick={refetch}>Refresh</button>
+    </div>
+  );
+});
+
+const PostsList = createComponent(({ lens }) => {
+  const { data: posts, loading, error } = useApi('/api/posts');
+  
+  if (loading) return <div>Loading posts...</div>;
+  if (error) return <div>Error: {error}</div>;
+  
+  return (
+    <div>
+      {posts?.map(post => (
+        <div key={post.id}>
+          <h3>{post.title}</h3>
+          <p>{post.excerpt}</p>
+        </div>
+      ))}
+    </div>
+  );
+});
+```
+
+### Local storage optic
+
+This optic syncs state with local storage:
+
+```javascript
+function useLocalStorage(key, defaultValue) {
+  // Initialize with stored value or default
+  const getStoredValue = () => {
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : defaultValue;
+    } catch (error) {
+      console.warn(`Error reading localStorage key "${key}":`, error);
+      return defaultValue;
+    }
+  };
+  
+  const storedValue = lens.useRefraction(getStoredValue);
+  
+  // Update localStorage whenever value changes
+  lens.useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(storedValue.value));
+    } catch (error) {
+      console.warn(`Error setting localStorage key "${key}":`, error);
+    }
+  }, [key, storedValue.value]);
+  
+  // Listen for storage changes from other tabs
+  lens.useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === key && e.newValue !== null) {
+        try {
+          const newValue = JSON.parse(e.newValue);
+          storedValue.set(newValue);
+        } catch (error) {
+          console.warn(`Error parsing localStorage value for key "${key}":`, error);
+        }
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [key]);
+  
+  return {
+    value: storedValue.value,
+    setValue: storedValue.set,
+    updateValue: storedValue.update
+  };
+}
+
+// Use it for persistent settings
+const SettingsPanel = createComponent(({ lens }) => {
+  const { value: theme, setValue: setTheme } = useLocalStorage('app-theme', 'light');
+  const { value: language, setValue: setLanguage } = useLocalStorage('app-language', 'en');
+  
+  return (
+    <div>
+      <h2>Settings</h2>
+      
+      <div>
+        <label>
+          Theme: 
+          <select value={theme} onChange={(e) => setTheme(e.target.value)}>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="auto">Auto</option>
+          </select>
+        </label>
+      </div>
+      
+      <div>
+        <label>
+          Language: 
+          <select value={language} onChange={(e) => setLanguage(e.target.value)}>
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+          </select>
+        </label>
+      </div>

@@ -1,0 +1,304 @@
+---
+title: "createComponent"
+sidebar_position: 1
+sidebar_label: "createComponent"
+slug: /create-component
+---
+
+
+Creates a new Refract component. Components are the building blocks of your application—they're pure functions that take props and return JSX.
+
+## Reference
+
+```javascript
+import { createComponent } from 'refract';
+
+const MyComponent = createComponent(({ lens, ...props }) => {
+  // Component logic here
+  return <div>Hello, world!</div>;
+});
+```
+
+### Parameters
+
+- **componentFunction**: A function that receives props and returns JSX. The first parameter is always the `lens` object, followed by any other props you define.
+
+### Returns
+
+A Refract component that can be used in JSX or rendered with `createApp()`.
+
+## Usage
+
+### Creating a basic component
+
+The simplest component just returns some JSX:
+
+```javascript
+const Greeting = createComponent(({ lens, name }) => {
+  return <h1>Hello, {name}!</h1>;
+});
+
+// Use it like this:
+<Greeting name="Sarah" />
+```
+
+### Components with state
+
+Use `lens.useRefraction()` to add reactive state to your component:
+
+```javascript
+const Counter = createComponent(({ lens, initialCount = 0 }) => {
+  const count = lens.useRefraction(initialCount);
+  
+  const increment = () => count.set(count.value + 1);
+  const decrement = () => count.set(count.value - 1);
+  
+  return (
+    <div>
+      <p>Count: {count.value}</p>
+      <button onClick={increment}>+</button>
+      <button onClick={decrement}>-</button>
+    </div>
+  );
+});
+```
+
+### Components with side effects
+
+Use `lens.useEffect()` to handle side effects like data fetching:
+
+```javascript
+const UserProfile = createComponent(({ lens, userId }) => {
+  const user = lens.useRefraction(null);
+  const loading = lens.useRefraction(true);
+  
+  lens.useEffect(() => {
+    const fetchUser = async () => {
+      loading.set(true);
+      try {
+        const response = await fetch(`/api/users/${userId}`);
+        const userData = await response.json();
+        user.set(userData);
+      } catch (error) {
+        console.error('Failed to fetch user:', error);
+      } finally {
+        loading.set(false);
+      }
+    };
+    
+    fetchUser();
+  }, [userId]);
+  
+  if (loading.value) {
+    return <div>Loading...</div>;
+  }
+  
+  if (!user.value) {
+    return <div>User not found</div>;
+  }
+  
+  return (
+    <div>
+      <h2>{user.value.name}</h2>
+      <p>{user.value.email}</p>
+    </div>
+  );
+});
+```
+
+### Using optics for reusable logic
+
+Optics let you share logic between components:
+
+```javascript
+// Define an optic
+function useToggle(initial = false) {
+  const value = lens.useRefraction(initial);
+  const toggle = () => value.set(!value.value);
+  const setTrue = () => value.set(true);
+  const setFalse = () => value.set(false);
+  
+  return { value: value.value, toggle, setTrue, setFalse };
+}
+
+// Use it in a component
+const DropdownMenu = createComponent(({ lens, children, trigger }) => {
+  const { value: isOpen, toggle, setFalse } = useToggle();
+  
+  return (
+    <div>
+      <button onClick={toggle}>{trigger}</button>
+      {isOpen && (
+        <div className="dropdown" onClick={setFalse}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+});
+```
+
+## The lens object
+
+Every component receives a `lens` object as its first prop. The lens provides access to:
+
+- **State management**: `useRefraction()`, `useGlobalRefraction()`
+- **Side effects**: `useEffect()`, `useFlash()`
+- **Performance**: `useMemo()`, `useCallback()`
+- **References**: `useRef()`
+- **Optics**: Custom reusable logic
+
+Think of the lens as your component's toolkit—everything you need to build reactive UIs.
+
+```javascript
+const ExampleComponent = createComponent(({ lens, title }) => {
+  // State
+  const count = lens.useRefraction(0);
+  
+  // Side effects
+  lens.useEffect(() => {
+    document.title = `${title} - Count: ${count.value}`;
+  }, [title, count.value]);
+  
+  // Memoization
+  const expensiveValue = lens.useMemo(() => {
+    return count.value * 1000;
+  }, [count.value]);
+  
+  // Refs
+  const buttonRef = lens.useRef();
+  
+  return (
+    <div>
+      <h1>{title}</h1>
+      <p>Count: {count.value}</p>
+      <p>Expensive value: {expensiveValue}</p>
+      <button 
+        ref={buttonRef}
+        onClick={() => count.set(count.value + 1)}
+      >
+        Increment
+      </button>
+    </div>
+  );
+});
+```
+
+## TypeScript
+
+When using TypeScript, define your props interface and use the `ComponentFunction` type:
+
+```typescript
+import { ComponentFunction } from 'refract';
+
+interface CounterProps {
+  initialCount?: number;
+  step?: number;
+  onCountChange?: (count: number) => void;
+}
+
+const Counter: ComponentFunction<CounterProps> = ({ 
+  lens, 
+  initialCount = 0, 
+  step = 1, 
+  onCountChange 
+}) => {
+  const count = lens.useRefraction(initialCount);
+  
+  const increment = () => {
+    const newCount = count.value + step;
+    count.set(newCount);
+    onCountChange?.(newCount);
+  };
+  
+  return (
+    <button onClick={increment}>
+      Count: {count.value}
+    </button>
+  );
+};
+```
+
+## Best practices
+
+### Keep components small and focused
+
+Each component should have a single responsibility:
+
+```javascript
+// Good: Focused component
+const TodoItem = createComponent(({ lens, todo, onToggle, onDelete }) => {
+  return (
+    <div className={`todo-item ${todo.completed ? 'completed' : ''}`}>
+      <input 
+        type="checkbox" 
+        checked={todo.completed}
+        onChange={() => onToggle(todo.id)}
+      />
+      <span>{todo.text}</span>
+      <button onClick={() => onDelete(todo.id)}>Delete</button>
+    </div>
+  );
+});
+
+// Better than one large TodoApp component doing everything
+```
+
+### Use descriptive names
+
+Component names should clearly describe what they do:
+
+```javascript
+// Good
+const UserAvatarWithStatus = createComponent(({ lens, user }) => {
+  // ...
+});
+
+// Less clear
+const UserThing = createComponent(({ lens, user }) => {
+  // ...
+});
+```
+
+### Extract reusable logic to optics
+
+If you find yourself repeating logic across components, create an optic:
+
+```javascript
+// Reusable optic
+function useApi(endpoint) {
+  const data = lens.useRefraction(null);
+  const loading = lens.useRefraction(false);
+  const error = lens.useRefraction(null);
+  
+  const fetch = async () => {
+    loading.set(true);
+    error.set(null);
+    
+    try {
+      const response = await window.fetch(endpoint);
+      const result = await response.json();
+      data.set(result);
+    } catch (err) {
+      error.set(err.message);
+    } finally {
+      loading.set(false);
+    }
+  };
+  
+  return { data: data.value, loading: loading.value, error: error.value, fetch };
+}
+
+// Use in multiple components
+const UserList = createComponent(({ lens }) => {
+  const { data: users, loading, error, fetch } = useApi('/api/users');
+  
+  lens.useEffect(() => {
+    fetch();
+  }, []);
+  
+  // Render logic...
+});
+```
+
+That's everything you need to know about creating components in Refract. Next, learn about [useRefraction](/api-reference/useRefraction) to manage state in your components.
