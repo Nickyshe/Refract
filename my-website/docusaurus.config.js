@@ -203,7 +203,7 @@ pages: {
               },
               {
                 label: "X",
-                href: "",
+                href: "https://x.com/judith_etugbo?t=eqQWuj8uDTQMtF5L1UPOVA&s=09",
               },
             ],
           },
