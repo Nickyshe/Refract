@@ -28,8 +28,9 @@
   --ifm-color-primary-lightest: #ffffff;
   --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.3);
 }
-
-
+.theme-doc-markdown a {
+  color:  rgb(82, 168, 255) !important; 
+}
 /* Add this to your existing CSS */
 .footer {
   background-color: #f8f9fa !important; /* Your desired background color */
@@ -56,6 +57,11 @@
 
 [data-theme='dark'] .footer__title {
   color: #ffffff !important;
+}
+
+/* Documentation links color */
+.theme-doc-markdown a {
+  color: rgb(82, 168, 255) !important;
 }
 
 

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Book, Code, Lightbulb, PlayCircle, ArrowRight } from 'lucide-react';
 
 const RefractLandingPage = () => {
@@ -6,31 +5,30 @@ const RefractLandingPage = () => {
     {
       title: "Getting Started",
       description: "Create your first Refract project and learn the fundamentals of optical state management",
-      icon: <Book style={{ width: '24px', height: '24px' }} />,
+      icon: <Book className="lucide-icon" />,
       href: "/docs/introduction"
     },
     {
       title: "API Reference", 
       description: "Complete reference documentation for all Refract APIs, hooks, and methods",
-      icon: <Code style={{ width: '24px', height: '24px' }} />,
+      icon: <Code className="lucide-icon" />,
       href: "/docs/create-component"
     },
     {
       title: "Guides",
       description: "Practical guides and best practices for building scalable Refract applications", 
-      icon: <Lightbulb style={{ width: '24px', height: '24px' }} />,
+      icon: <Lightbulb className="lucide-icon" />,
       href: "/docs/state-management"
     },
     {
       title: "Examples",
       description: "Real-world examples and interactive demonstrations to get you started quickly",
-      icon: <PlayCircle style={{ width: '24px', height: '24px' }} />,
+      icon: <PlayCircle className="lucide-icon" />,
       href: "/docs/hello-world"
     }
   ];
 
   const pageStyle = {
-    // Break out of Docusaurus container
     position: 'relative',
     left: '50%',
     right: '50%',
@@ -43,7 +41,6 @@ const RefractLandingPage = () => {
       radial-gradient(circle at 20% 80%, var(--ifm-color-emphasis-200, rgba(0,0,0,0.05)) 0%, transparent 50%),
       radial-gradient(circle at 80% 20%, var(--ifm-color-emphasis-200, rgba(0,0,0,0.05)) 0%, transparent 50%)
     `,
-    // Remove any margins that might be applied by Docusaurus
     marginTop: 'calc(-1 * var(--ifm-navbar-height, 60px))',
     marginBottom: 0,
     paddingTop: 'var(--ifm-navbar-height, 60px)',
@@ -153,7 +150,7 @@ const RefractLandingPage = () => {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: 'var(--ifm-color-primary, #000)',
+    color: 'var(--ifm-color-primary, #000)', // default icon stroke
     transition: 'all 0.3s ease',
     flexShrink: 0
   };
@@ -185,6 +182,13 @@ const RefractLandingPage = () => {
 
   return (
     <div style={pageStyle}>
+      <style>{`
+        .lucide-icon {
+          width: 24px;
+          height: 24px;
+          stroke: currentColor;
+        }
+      `}</style>
       <div style={containerStyle}>
         {/* Hero Section */}
         <div style={heroStyle}>
@@ -221,8 +225,8 @@ const RefractLandingPage = () => {
                     arrow.style.transform = 'translateX(0)';
                   }
                   if (icon) {
-                    icon.style.backgroundColor = 'var(--ifm-color-primary, #000)';
-                    icon.style.color = 'var(--ifm-background-color, #fff)';
+                    icon.style.backgroundColor = 'var(--ifm-color-primary)';
+                    icon.style.color = 'var(--ifm-background-surface-color, #fff)';
                     icon.style.transform = 'scale(1.05)';
                   }
                 }}
@@ -270,3 +274,5 @@ const RefractLandingPage = () => {
 };
 
 export default RefractLandingPage;
+
+
