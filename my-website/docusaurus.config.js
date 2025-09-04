@@ -1,30 +1,18 @@
-// @ts-check
-// `@type` JSDoc annotations allow editor autocompletion and type checking
-// (when paired with `@ts-check`).
-// There are various equivalent ways to declare your Docusaurus config.
-// See: https://docusaurus.io/docs/api/docusaurus-config
 
 import { themes as prismThemes } from "prism-react-renderer";
-//import docsearch from '@docsearch/js';
-//import '@docsearch/css';
 
 
-// This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
+
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "Refract",
   favicon: "img/FAVICON.png",
 
-  // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
-  // future: {
-  //   v4: true, // Improve compatibility with the upcoming Docusaurus v4
-  // },
 
-  // Set the production url of your site here
+
   url: "https://judy-refract.netlify.app/",
-  // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
+
   baseUrl: "/",
   trailingSlash: false, //fix
 
@@ -36,9 +24,7 @@ const config = {
   onBrokenLinks: "warn",
   onBrokenMarkdownLinks: "warn",
 
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
+
   i18n: {
     defaultLocale: "en",
     locales: ["en"],
@@ -52,19 +38,19 @@ const config = {
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
 
-      //  Change this section in your config
-docs: {
-  routeBasePath: "/docs", // Change from "/" to "/docs"
-  sidebarPath: "./sidebars.js",
-  showLastUpdateTime: true,
-  showLastUpdateAuthor: true,
-  editUrl:
-    "https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/",
-},
-pages: {
-  path: 'src/pages',
-  routeBasePath: '/',
-}, 
+        //  Change this section in your config
+        docs: {
+          routeBasePath: "/docs", // Change from "/" to "/docs"
+          sidebarPath: "./sidebars.js",
+          showLastUpdateTime: true,
+          showLastUpdateAuthor: true,
+          editUrl:
+            "https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/",
+        },
+        pages: {
+          path: 'src/pages',
+          routeBasePath: '/',
+        },
         theme: {
           customCss: "./src/css/custom.css",
         },
@@ -75,29 +61,28 @@ pages: {
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
-       
+
       algolia: {
-      // The application ID provided by Algolia
-      appId: '2657AGORS0',
+        // The application ID provided by Algolia
+        appId: '2657AGORS0',
 
-      // Public API key: it is safe to commit it
-      apiKey: 'fb30561ec2859b7a2142938470f89ae4',
+        // Public API key: it is safe to commit it
+        apiKey: 'fb30561ec2859b7a2142938470f89ae4',
 
-      indexName: 'refractcapstone_project_pages',
+        indexName: 'refract_project',
 
-      // Optional: see doc section below
-      contextualSearch: true,
+        // Optional: see doc section below
+        contextualSearch: false,
       },
 
       liveCodeBlock: {
-      /**
-       * The position of the live playground, above or under the editor
-       * Possible values: "top" | "bottom"
-       */
-      playgroundPosition: 'bottom',
-    },
-      // Replace with your project's social card
-      image: "img/docusaurus-social-card.jpg",
+        /**
+         * The position of the live playground, above or under the editor
+         * Possible values: "top" | "bottom"
+         */
+        playgroundPosition: 'bottom',
+      },
+
       navbar: {
         title: "Refract",
         logo: {
@@ -118,7 +103,7 @@ pages: {
             position: "left",
             label: "API",
           },
-           {
+          {
             type: "docSidebar",
             sidebarId: "examplesSidebar",
             position: "left",
@@ -154,10 +139,10 @@ pages: {
             "aria-label": "LinkedIn profile",
           },
 
-         { 
-        type: 'search',
-        position: 'right',
-      },
+          {
+            type: 'search',
+            position: 'right',
+          },
 
         ],
       },
@@ -173,7 +158,7 @@ pages: {
                 to: '/docs/installation',
               },
 
-                {
+              {
                 label: 'Lenses',
                 to: '/docs/lenses',
               },
@@ -210,7 +195,7 @@ pages: {
           {
             title: "More",
             items: [
-            
+
               {
                 label: "GitHub",
                 href: "https://github.com/Nickyshe",
